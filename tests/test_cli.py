@@ -30,6 +30,13 @@ _FAKE_RESPONSES = {
             "est_duration_s": 13.3, "source_block_ids": ["b1"], "source_pages": [1],
         }]
     },
+    "【分镜输入】": {
+        "scenes": [{
+            "id": "sc01",
+            "visual_desc": "演讲者在屏幕前讲解报告要点,会议室环境,蓝橙色扁平插画,无文字。",
+            "image_prompt": "报告讲解场景,演讲者与展示屏,蓝橙色扁平插画,无文字",
+        }]
+    },
 }
 
 
