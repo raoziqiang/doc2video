@@ -1,4 +1,4 @@
-"""流水线阶段注册。P0/P1 真实实现,P2–P9 空桩(M1+ 逐个替换)。
+"""流水线阶段注册。P0–P8 为真实实现,P9 仍为空桩,按里程碑逐个替换。
 
 阶段处理器签名:handler(job_dir, cfg, opts, **kw) -> StageResult
 """
@@ -68,4 +68,8 @@ def stage_handler(stage: str):
         from .p7_render import stage_p7
 
         return stage_p7
+    if stage == "P8":
+        from .p8_qc import stage_p8
+
+        return stage_p8
     return stage_stub

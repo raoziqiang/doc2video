@@ -106,6 +106,12 @@ def run_stages(job_dir: Path, cfg: dict[str, Any], opts: Any, source: Path | Non
                     kwargs["stage"] = stage
                 result: StageResult = handler(**kwargs)  # type: ignore[arg-type]
                 if result.error:
+                    # 硬门禁失败也要保留已经生成的 QC/审计报告,再把阶段置为 failed。
+                    if result.artifacts:
+                        require_transition(st.status, StageStatus.committing)
+                        st.status = StageStatus.committing
+                        store.save(state)
+                        st.artifact_manifest_ref = _commit_artifacts(job_dir, stage, result.artifacts)
                     raise RuntimeError(result.error)
 
                 require_transition(st.status, StageStatus.committing)
