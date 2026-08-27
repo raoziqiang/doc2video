@@ -1,0 +1,90 @@
+{
+  "additionalProperties": false,
+  "description": "P0 输出;只记录计划内约束,实际外发见 egress_manifest/egress_report(不可变)。",
+  "properties": {
+    "schema_version": {
+      "const": "1.0",
+      "default": "1.0",
+      "title": "Schema Version",
+      "type": "string"
+    },
+    "job_id": {
+      "description": "作业 ID(日期_短哈希)",
+      "pattern": "^\\d{8}_[a-f0-9]{6,}$",
+      "title": "Job Id",
+      "type": "string"
+    },
+    "source": {
+      "description": "原始文档路径",
+      "minLength": 1,
+      "title": "Source",
+      "type": "string"
+    },
+    "source_sha256": {
+      "pattern": "^[a-f0-9]{64}$",
+      "title": "Source Sha256",
+      "type": "string"
+    },
+    "source_size": {
+      "exclusiveMinimum": 0,
+      "title": "Source Size",
+      "type": "integer"
+    },
+    "mime_type": {
+      "minLength": 1,
+      "title": "Mime Type",
+      "type": "string"
+    },
+    "doc_type": {
+      "enum": [
+        "pdf",
+        "docx",
+        "md",
+        "txt"
+      ],
+      "title": "Doc Type",
+      "type": "string"
+    },
+    "privacy_mode": {
+      "enum": [
+        "offline",
+        "approved_cloud",
+        "unrestricted"
+      ],
+      "title": "Privacy Mode",
+      "type": "string"
+    },
+    "created_at": {
+      "format": "date-time",
+      "title": "Created At",
+      "type": "string"
+    },
+    "config_fingerprint": {
+      "description": "生效配置的哈希",
+      "minLength": 1,
+      "title": "Config Fingerprint",
+      "type": "string"
+    },
+    "pipeline_version": {
+      "minLength": 1,
+      "title": "Pipeline Version",
+      "type": "string"
+    }
+  },
+  "required": [
+    "job_id",
+    "source",
+    "source_sha256",
+    "source_size",
+    "mime_type",
+    "doc_type",
+    "privacy_mode",
+    "created_at",
+    "config_fingerprint",
+    "pipeline_version"
+  ],
+  "title": "Manifest",
+  "type": "object",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://doc2video.local/schemas/manifest.schema.json"
+}

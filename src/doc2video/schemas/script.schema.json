@@ -1,0 +1,111 @@
+{
+  "$defs": {
+    "Claim": {
+      "additionalProperties": false,
+      "properties": {
+        "fact_id": {
+          "pattern": "^f\\d{2,}$",
+          "title": "Fact Id",
+          "type": "string"
+        },
+        "quote": {
+          "description": "讲稿中与事实对应的原句片段",
+          "minLength": 1,
+          "title": "Quote",
+          "type": "string"
+        }
+      },
+      "required": [
+        "fact_id",
+        "quote"
+      ],
+      "title": "Claim",
+      "type": "object"
+    },
+    "ScriptScene": {
+      "additionalProperties": false,
+      "properties": {
+        "id": {
+          "pattern": "^sc\\d{2,3}$",
+          "title": "Id",
+          "type": "string"
+        },
+        "chapter": {
+          "minLength": 1,
+          "title": "Chapter",
+          "type": "string"
+        },
+        "narration": {
+          "description": "口播稿 60–180 字",
+          "maxLength": 180,
+          "minLength": 60,
+          "title": "Narration",
+          "type": "string"
+        },
+        "est_duration_s": {
+          "description": "估算时长 13–40 秒,取 10–45 硬界",
+          "maximum": 45,
+          "minimum": 10,
+          "title": "Est Duration S",
+          "type": "number"
+        },
+        "source_block_ids": {
+          "items": {
+            "type": "string"
+          },
+          "minItems": 1,
+          "title": "Source Block Ids",
+          "type": "array"
+        },
+        "source_pages": {
+          "items": {
+            "type": "integer"
+          },
+          "title": "Source Pages",
+          "type": "array"
+        },
+        "claims": {
+          "items": {
+            "$ref": "#/$defs/Claim"
+          },
+          "title": "Claims",
+          "type": "array"
+        }
+      },
+      "required": [
+        "id",
+        "chapter",
+        "narration",
+        "est_duration_s",
+        "source_block_ids"
+      ],
+      "title": "ScriptScene",
+      "type": "object"
+    }
+  },
+  "additionalProperties": false,
+  "properties": {
+    "schema_version": {
+      "const": "1.0",
+      "default": "1.0",
+      "title": "Schema Version",
+      "type": "string"
+    },
+    "scenes": {
+      "items": {
+        "$ref": "#/$defs/ScriptScene"
+      },
+      "maxItems": 20,
+      "minItems": 1,
+      "title": "Scenes",
+      "type": "array"
+    }
+  },
+  "required": [
+    "scenes"
+  ],
+  "title": "Script",
+  "type": "object",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://doc2video.local/schemas/script.schema.json"
+}

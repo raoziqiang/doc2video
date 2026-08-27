@@ -1,0 +1,67 @@
+# doc2video 默认配置(v0.2.1 方案;M0 Spike 结论将回填冻结值)
+pipeline:
+  version: "0.1.0"
+  workspace: workspace
+
+privacy:
+  # 默认保守:云调用需显式 --privacy approved_cloud|unrestricted 并满足授权门禁
+  default_mode: offline
+
+llm:
+  provider: ollama
+  base_url: http://localhost:11434
+  model: qwen3-14b-agent:latest   # M0 Spike 核实本机模型名与 digest
+  num_ctx: 8192                   # 每次 API 请求显式传入
+  max_output_tokens: 2048
+  temperature: 0.3
+  think: false
+  budget_reserve_ratio: 0.10      # 预算安全余量 10%
+
+tts:
+  provider: edge-tts
+  voice: zh-CN-XiaoxiaoNeural
+  concurrency: 4
+
+image:
+  provider: fal
+  endpoint: null    # M0 Spike 冻结(唯一 model_id + Schema 快照 + 价格 + 核验日期)
+  model_id: null
+  concurrency: 3
+  max_placeholder_ratio: 0.10
+  max_consecutive_placeholder: 2
+
+compose:
+  fps: 25
+  crf: 20
+  profile: high
+  level: "4.1"
+  audio_khz: 48000
+  audio_channels: 2
+  audio_bitrate: "128k"
+  lead_s: 0.5
+  trail_s: 0.5
+  fade_s: 0.3
+
+subtitle:
+  aligner: null    # M0 Spike 冻结选型
+  max_line_chars: 18
+  max_lines: 2
+  min_display_s: 0.8
+
+video:
+  max_duration_s: 600
+  chars_per_scene_min: 60
+  chars_per_scene_max: 180
+  chars_per_second: 4.5
+  max_scenes: 20
+
+limits:
+  max_input_mb: 200
+  max_cloud_calls_per_job: 60
+  max_cost_per_job: 5.0
+  max_cost_per_day: 20.0
+
+retry:
+  max_attempts_per_call: 3
+  max_attempts_per_scene: 5
+  backoff_base_s: 2

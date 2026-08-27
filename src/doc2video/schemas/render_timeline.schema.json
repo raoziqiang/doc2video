@@ -1,0 +1,88 @@
+{
+  "$defs": {
+    "TimelineScene": {
+      "additionalProperties": false,
+      "properties": {
+        "id": {
+          "pattern": "^sc\\d{2,3}$",
+          "title": "Id",
+          "type": "string"
+        },
+        "scene_start_s": {
+          "description": "全片时间轴上的起点",
+          "minimum": 0,
+          "title": "Scene Start S",
+          "type": "number"
+        },
+        "lead_s": {
+          "minimum": 0,
+          "title": "Lead S",
+          "type": "number"
+        },
+        "audio_duration_s": {
+          "exclusiveMinimum": 0,
+          "title": "Audio Duration S",
+          "type": "number"
+        },
+        "trail_s": {
+          "minimum": 0,
+          "title": "Trail S",
+          "type": "number"
+        },
+        "scene_total_s": {
+          "exclusiveMinimum": 0,
+          "title": "Scene Total S",
+          "type": "number"
+        },
+        "fade_out_start_s": {
+          "description": "= scene_start_s + scene_total_s − fade_s",
+          "minimum": 0,
+          "title": "Fade Out Start S",
+          "type": "number"
+        }
+      },
+      "required": [
+        "id",
+        "scene_start_s",
+        "lead_s",
+        "audio_duration_s",
+        "trail_s",
+        "scene_total_s",
+        "fade_out_start_s"
+      ],
+      "title": "TimelineScene",
+      "type": "object"
+    }
+  },
+  "additionalProperties": false,
+  "description": "P5 末尾提交;P6/P7/P8 只引用本文件,不各自计算。",
+  "properties": {
+    "schema_version": {
+      "const": "1.0",
+      "default": "1.0",
+      "title": "Schema Version",
+      "type": "string"
+    },
+    "scenes": {
+      "items": {
+        "$ref": "#/$defs/TimelineScene"
+      },
+      "minItems": 1,
+      "title": "Scenes",
+      "type": "array"
+    },
+    "total_s": {
+      "exclusiveMinimum": 0,
+      "title": "Total S",
+      "type": "number"
+    }
+  },
+  "required": [
+    "scenes",
+    "total_s"
+  ],
+  "title": "RenderTimeline",
+  "type": "object",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://doc2video.local/schemas/render_timeline.schema.json"
+}

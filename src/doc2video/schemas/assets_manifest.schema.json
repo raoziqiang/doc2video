@@ -1,0 +1,252 @@
+{
+  "$defs": {
+    "AudioAsset": {
+      "additionalProperties": false,
+      "properties": {
+        "path": {
+          "minLength": 1,
+          "title": "Path",
+          "type": "string"
+        },
+        "duration_s": {
+          "description": "实测时长",
+          "exclusiveMinimum": 0,
+          "title": "Duration S",
+          "type": "number"
+        },
+        "native_marks": {
+          "anyOf": [
+            {
+              "items": {
+                "$ref": "#/$defs/NativeMark"
+              },
+              "type": "array"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Native Marks"
+        },
+        "provider": {
+          "minLength": 1,
+          "title": "Provider",
+          "type": "string"
+        },
+        "voice": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Voice"
+        },
+        "request_id": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Request Id"
+        }
+      },
+      "required": [
+        "path",
+        "duration_s",
+        "provider"
+      ],
+      "title": "AudioAsset",
+      "type": "object"
+    },
+    "ImageAsset": {
+      "additionalProperties": false,
+      "properties": {
+        "path": {
+          "minLength": 1,
+          "title": "Path",
+          "type": "string"
+        },
+        "cache_key": {
+          "description": "内容寻址缓存键 SHA-256",
+          "minLength": 1,
+          "title": "Cache Key",
+          "type": "string"
+        },
+        "provider": {
+          "minLength": 1,
+          "title": "Provider",
+          "type": "string"
+        },
+        "model": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Model"
+        },
+        "request_id": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Request Id"
+        },
+        "width": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Width"
+        },
+        "height": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Height"
+        },
+        "seed": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Seed"
+        },
+        "placeholder": {
+          "default": false,
+          "title": "Placeholder",
+          "type": "boolean"
+        }
+      },
+      "required": [
+        "path",
+        "cache_key",
+        "provider"
+      ],
+      "title": "ImageAsset",
+      "type": "object"
+    },
+    "NativeMark": {
+      "additionalProperties": false,
+      "description": "TTS 原生时间边界(scene-relative,秒)。可空:Provider 可能无此能力。",
+      "properties": {
+        "text": {
+          "title": "Text",
+          "type": "string"
+        },
+        "start_s": {
+          "minimum": 0,
+          "title": "Start S",
+          "type": "number"
+        },
+        "end_s": {
+          "minimum": 0,
+          "title": "End S",
+          "type": "number"
+        }
+      },
+      "required": [
+        "text",
+        "start_s",
+        "end_s"
+      ],
+      "title": "NativeMark",
+      "type": "object"
+    },
+    "SceneAssets": {
+      "additionalProperties": false,
+      "properties": {
+        "scene_id": {
+          "pattern": "^sc\\d{2,3}$",
+          "title": "Scene Id",
+          "type": "string"
+        },
+        "audio": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/AudioAsset"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "image": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/ImageAsset"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        }
+      },
+      "required": [
+        "scene_id"
+      ],
+      "title": "SceneAssets",
+      "type": "object"
+    }
+  },
+  "additionalProperties": false,
+  "properties": {
+    "schema_version": {
+      "const": "1.0",
+      "default": "1.0",
+      "title": "Schema Version",
+      "type": "string"
+    },
+    "scenes": {
+      "items": {
+        "$ref": "#/$defs/SceneAssets"
+      },
+      "minItems": 1,
+      "title": "Scenes",
+      "type": "array"
+    }
+  },
+  "required": [
+    "scenes"
+  ],
+  "title": "AssetsManifest",
+  "type": "object",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://doc2video.local/schemas/assets_manifest.schema.json"
+}

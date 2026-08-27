@@ -1,0 +1,20 @@
+# 视觉风格模板(style bible)—— P4 使用
+flat-illustration:
+  prefix: "扁平插画风格,深蓝+橙色配色,简洁构图,无文字"
+  negative: "text, watermark, words, letters"
+  palette: ["#1B3A6B", "#E8890C", "#F5F7FA"]
+
+business-minimal:
+  prefix: "商务极简风格,白底蓝灰配色,干净留白,无文字"
+  negative: "text, watermark, words, letters, cluttered"
+  palette: ["#2C3E50", "#3498DB", "#FFFFFF"]
+
+tech-dark:
+  prefix: "科技感深色风格,深灰底霓虹蓝高光,赛博质感,无文字"
+  negative: "text, watermark, words, letters, bright-flat"
+  palette: ["#0F172A", "#38BDF8", "#1E293B"]
+
+realistic-photo:
+  prefix: "写实摄影风格,自然光,浅景深,无文字"
+  negative: "text, watermark, words, letters, illustration, cartoon"
+  palette: []

@@ -1,0 +1,79 @@
+{
+  "$defs": {
+    "Cue": {
+      "additionalProperties": false,
+      "properties": {
+        "id": {
+          "minLength": 1,
+          "title": "Id",
+          "type": "string"
+        },
+        "scene_id": {
+          "pattern": "^sc\\d{2,3}$",
+          "title": "Scene Id",
+          "type": "string"
+        },
+        "text": {
+          "minLength": 1,
+          "title": "Text",
+          "type": "string"
+        },
+        "start_s": {
+          "description": "全片时间轴(由 render_timeline 换算)",
+          "minimum": 0,
+          "title": "Start S",
+          "type": "number"
+        },
+        "end_s": {
+          "minimum": 0,
+          "title": "End S",
+          "type": "number"
+        },
+        "source": {
+          "description": "native=TTS 原生边界;aligned=强制对齐;asr_fallback=ASR 低置信兜底",
+          "enum": [
+            "native",
+            "aligned",
+            "asr_fallback"
+          ],
+          "title": "Source",
+          "type": "string"
+        }
+      },
+      "required": [
+        "id",
+        "scene_id",
+        "text",
+        "start_s",
+        "end_s",
+        "source"
+      ],
+      "title": "Cue",
+      "type": "object"
+    }
+  },
+  "additionalProperties": false,
+  "properties": {
+    "schema_version": {
+      "const": "1.0",
+      "default": "1.0",
+      "title": "Schema Version",
+      "type": "string"
+    },
+    "cues": {
+      "items": {
+        "$ref": "#/$defs/Cue"
+      },
+      "minItems": 1,
+      "title": "Cues",
+      "type": "array"
+    }
+  },
+  "required": [
+    "cues"
+  ],
+  "title": "Subtitles",
+  "type": "object",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://doc2video.local/schemas/subtitles.schema.json"
+}

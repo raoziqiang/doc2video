@@ -1,0 +1,42 @@
+[project]
+name = "doc2video"
+version = "0.1.0"
+description = "文档 → 视频 自动化流水线(技术方案 v0.2.1)"
+requires-python = ">=3.11,<3.12"
+dependencies = [
+    "pydantic>=2.9",
+    "pyyaml>=6.0",
+    "python-dotenv>=1.0",
+    "httpx>=0.27",
+    "pymupdf>=1.24",
+    "python-docx>=1.1",
+    "markdown-it-py>=3.0",
+    "edge-tts>=7.0",
+    "faster-whisper>=1.0",
+    "jsonschema>=4.22",
+]
+
+[project.scripts]
+doc2video = "doc2video.cli:main"
+
+[dependency-groups]
+dev = [
+    "pytest>=8.2",
+    "pytest-asyncio>=0.23",
+    "ruff>=0.5",
+]
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/doc2video"]
+
+[tool.pytest.ini_options]
+asyncio_mode = "auto"
+testpaths = ["tests"]
+
+[tool.ruff]
+line-length = 100
+target-version = "py311"

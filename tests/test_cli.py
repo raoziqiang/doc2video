@@ -1,0 +1,88 @@
+"""缓存与 CLI 测试:内容寻址键、空管线跑通、resume 全量重验。"""
+
+from pathlib import Path
+
+from doc2video.cache import canonical_json, content_key
+from doc2video.cli import main
+from doc2video.contracts import JobState, Manifest
+from doc2video.pipeline import STAGES
+from doc2video.state import TERMINAL_OK, StateStore
+
+
+def test_canonical_json_key_order_independent():
+    assert canonical_json({"b": 1, "a": [2, 1]}) == canonical_json({"a": [2, 1], "b": 1})
+
+
+def test_content_key_deterministic_and_sensitive():
+    a = content_key("p1", "p2")
+    assert a == content_key("p1", "p2")
+    assert a != content_key("p1", "p3")
+
+
+def _make_doc(tmp_path: Path) -> Path:
+    doc = tmp_path / "demo.md"
+    doc.write_text("# 标题\n\n正文内容。", encoding="utf-8")
+    return doc
+
+
+def _latest_job(workspace: Path) -> Path:
+    jobs = sorted(p for p in workspace.iterdir() if p.is_dir())
+    assert jobs, "run 未生成作业目录"
+    return jobs[-1]
+
+
+def test_run_empty_pipeline(tmp_path: Path, monkeypatch):
+    monkeypatch.setenv("DOC2VIDEO_WORKSPACE", str(tmp_path / "ws"))
+    doc = _make_doc(tmp_path)
+    code = main(["run", str(doc), "--privacy", "offline"])
+    assert code == 0
+    job = _latest_job(tmp_path / "ws")
+    state: JobState = StateStore(job).load()
+    for stage in STAGES:
+        assert state.stages[stage].status in TERMINAL_OK, f"{stage} 未达终态"
+    manifest = Manifest.model_validate_json((job / "manifest.json").read_text(encoding="utf-8"))
+    assert manifest.doc_type == "md"
+    assert manifest.privacy_mode == "offline"
+    assert (job / "input" / "demo.md").exists()
+    assert (job / "events.jsonl").exists()
+
+
+def test_resume_is_idempotent(tmp_path: Path, monkeypatch):
+    monkeypatch.setenv("DOC2VIDEO_WORKSPACE", str(tmp_path / "ws"))
+    doc = _make_doc(tmp_path)
+    assert main(["run", str(doc), "--privacy", "offline"]) == 0
+    job = _latest_job(tmp_path / "ws")
+    before = StateStore(job).load()
+    assert main(["resume", job.name]) == 0
+    after = StateStore(job).load()
+    assert before.revision < after.revision
+    for stage in STAGES:
+        # 已完成阶段不重跑(attempts 不增加)
+        assert after.stages[stage].attempts == before.stages[stage].attempts
+
+
+def test_resume_detects_corrupted_artifact(tmp_path: Path, monkeypatch):
+    """全量重验:删除已提交产物 → resume 发现脏节点 → P0 重跑恢复。"""
+    monkeypatch.setenv("DOC2VIDEO_WORKSPACE", str(tmp_path / "ws"))
+    doc = _make_doc(tmp_path)
+    assert main(["run", str(doc), "--privacy", "offline"]) == 0
+    job = _latest_job(tmp_path / "ws")
+    before = StateStore(job).load()
+    (job / "input" / "demo.md").unlink()  # 破坏 P0 已提交产物
+    assert main(["resume", job.name]) == 0
+    after = StateStore(job).load()
+    assert after.stages["P0"].attempts > before.stages["P0"].attempts
+    assert (job / "input" / "demo.md").exists()  # 已恢复
+
+
+def test_unsupported_input_rejected(tmp_path: Path, monkeypatch):
+    monkeypatch.setenv("DOC2VIDEO_WORKSPACE", str(tmp_path / "ws"))
+    bad = tmp_path / "x.exe"
+    bad.write_text("MZ", encoding="utf-8")
+    assert main(["run", str(bad)]) == 2
+
+
+def test_doctor_runs(monkeypatch):
+    monkeypatch.setenv("DOC2VIDEO_WORKSPACE", str(Path.home() / "Temp" / "doc2video-doctor-ws"))
+    code = main(["doctor"])
+    assert code in (0, 2)  # 环境项失败返回 2,但不崩溃

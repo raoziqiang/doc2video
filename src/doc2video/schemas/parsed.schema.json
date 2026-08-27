@@ -1,0 +1,193 @@
+{
+  "$defs": {
+    "Block": {
+      "additionalProperties": false,
+      "properties": {
+        "block_id": {
+          "description": "稳定块 ID(构造规则见方案 4.2)",
+          "pattern": "^b\\d+$",
+          "title": "Block Id",
+          "type": "string"
+        },
+        "type": {
+          "enum": [
+            "paragraph",
+            "list",
+            "table",
+            "image"
+          ],
+          "title": "Type",
+          "type": "string"
+        },
+        "text": {
+          "default": "",
+          "title": "Text",
+          "type": "string"
+        },
+        "page": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Page"
+        },
+        "bbox": {
+          "anyOf": [
+            {
+              "items": {
+                "type": "number"
+              },
+              "type": "array"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Bbox"
+        },
+        "reading_order": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Reading Order"
+        },
+        "ocr_confidence": {
+          "anyOf": [
+            {
+              "maximum": 1,
+              "minimum": 0,
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Ocr Confidence"
+        }
+      },
+      "required": [
+        "block_id",
+        "type"
+      ],
+      "title": "Block",
+      "type": "object"
+    },
+    "ParsedMeta": {
+      "additionalProperties": false,
+      "properties": {
+        "source": {
+          "title": "Source",
+          "type": "string"
+        },
+        "type": {
+          "title": "Type",
+          "type": "string"
+        },
+        "pages": {
+          "minimum": 1,
+          "title": "Pages",
+          "type": "integer"
+        },
+        "chars": {
+          "minimum": 0,
+          "title": "Chars",
+          "type": "integer"
+        },
+        "parser_version": {
+          "minLength": 1,
+          "title": "Parser Version",
+          "type": "string"
+        }
+      },
+      "required": [
+        "source",
+        "type",
+        "pages",
+        "chars",
+        "parser_version"
+      ],
+      "title": "ParsedMeta",
+      "type": "object"
+    },
+    "Section": {
+      "additionalProperties": false,
+      "properties": {
+        "id": {
+          "pattern": "^s\\d+$",
+          "title": "Id",
+          "type": "string"
+        },
+        "level": {
+          "maximum": 6,
+          "minimum": 1,
+          "title": "Level",
+          "type": "integer"
+        },
+        "heading": {
+          "title": "Heading",
+          "type": "string"
+        },
+        "blocks": {
+          "items": {
+            "$ref": "#/$defs/Block"
+          },
+          "title": "Blocks",
+          "type": "array"
+        }
+      },
+      "required": [
+        "id",
+        "level",
+        "heading"
+      ],
+      "title": "Section",
+      "type": "object"
+    }
+  },
+  "additionalProperties": false,
+  "properties": {
+    "schema_version": {
+      "const": "1.0",
+      "default": "1.0",
+      "title": "Schema Version",
+      "type": "string"
+    },
+    "meta": {
+      "$ref": "#/$defs/ParsedMeta"
+    },
+    "title": {
+      "title": "Title",
+      "type": "string"
+    },
+    "sections": {
+      "items": {
+        "$ref": "#/$defs/Section"
+      },
+      "minItems": 1,
+      "title": "Sections",
+      "type": "array"
+    }
+  },
+  "required": [
+    "meta",
+    "title",
+    "sections"
+  ],
+  "title": "ParsedDocument",
+  "type": "object",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://doc2video.local/schemas/parsed.schema.json"
+}

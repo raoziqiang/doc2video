@@ -1,0 +1,84 @@
+{
+  "$defs": {
+    "EgressCall": {
+      "additionalProperties": false,
+      "properties": {
+        "provider": {
+          "minLength": 1,
+          "title": "Provider",
+          "type": "string"
+        },
+        "fields_sent": {
+          "description": "外发的字段清单",
+          "items": {
+            "type": "string"
+          },
+          "title": "Fields Sent",
+          "type": "array"
+        },
+        "client_request_uuid": {
+          "minLength": 1,
+          "title": "Client Request Uuid",
+          "type": "string"
+        },
+        "request_id": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Request Id"
+        },
+        "at": {
+          "format": "date-time",
+          "title": "At",
+          "type": "string"
+        },
+        "cost": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Cost"
+        }
+      },
+      "required": [
+        "provider",
+        "client_request_uuid",
+        "at"
+      ],
+      "title": "EgressCall",
+      "type": "object"
+    }
+  },
+  "additionalProperties": false,
+  "description": "P5 提交;云 LLM 阶段(P2/P3/P4)的外发以事件写入 events.jsonl,P8 汇总。",
+  "properties": {
+    "schema_version": {
+      "const": "1.0",
+      "default": "1.0",
+      "title": "Schema Version",
+      "type": "string"
+    },
+    "calls": {
+      "items": {
+        "$ref": "#/$defs/EgressCall"
+      },
+      "title": "Calls",
+      "type": "array"
+    }
+  },
+  "title": "EgressManifest",
+  "type": "object",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://doc2video.local/schemas/egress_manifest.schema.json"
+}

@@ -1,0 +1,286 @@
+{
+  "$defs": {
+    "ChapterPlanItem": {
+      "additionalProperties": false,
+      "properties": {
+        "chapter": {
+          "minLength": 1,
+          "title": "Chapter",
+          "type": "string"
+        },
+        "section_ids": {
+          "items": {
+            "type": "string"
+          },
+          "minItems": 1,
+          "title": "Section Ids",
+          "type": "array"
+        },
+        "planned_scenes": {
+          "maximum": 20,
+          "minimum": 1,
+          "title": "Planned Scenes",
+          "type": "integer"
+        }
+      },
+      "required": [
+        "chapter",
+        "section_ids",
+        "planned_scenes"
+      ],
+      "title": "ChapterPlanItem",
+      "type": "object"
+    },
+    "ChapterSummary": {
+      "additionalProperties": false,
+      "properties": {
+        "section_ids": {
+          "items": {
+            "type": "string"
+          },
+          "minItems": 1,
+          "title": "Section Ids",
+          "type": "array"
+        },
+        "summary": {
+          "minLength": 1,
+          "title": "Summary",
+          "type": "string"
+        },
+        "source_block_ids": {
+          "items": {
+            "type": "string"
+          },
+          "minItems": 1,
+          "title": "Source Block Ids",
+          "type": "array"
+        }
+      },
+      "required": [
+        "section_ids",
+        "summary",
+        "source_block_ids"
+      ],
+      "title": "ChapterSummary",
+      "type": "object"
+    },
+    "Coverage": {
+      "additionalProperties": false,
+      "properties": {
+        "blocks_seen": {
+          "minimum": 0,
+          "title": "Blocks Seen",
+          "type": "integer"
+        },
+        "blocks_total": {
+          "minimum": 0,
+          "title": "Blocks Total",
+          "type": "integer"
+        },
+        "uncovered_block_ids": {
+          "items": {
+            "type": "string"
+          },
+          "title": "Uncovered Block Ids",
+          "type": "array"
+        }
+      },
+      "required": [
+        "blocks_seen",
+        "blocks_total"
+      ],
+      "title": "Coverage",
+      "type": "object"
+    },
+    "Fact": {
+      "additionalProperties": false,
+      "properties": {
+        "fact_id": {
+          "pattern": "^f\\d{2,}$",
+          "title": "Fact Id",
+          "type": "string"
+        },
+        "kind": {
+          "enum": [
+            "number",
+            "date",
+            "proper_noun",
+            "unit",
+            "negation"
+          ],
+          "title": "Kind",
+          "type": "string"
+        },
+        "text": {
+          "description": "原文事实表述,不得改写",
+          "minLength": 1,
+          "title": "Text",
+          "type": "string"
+        },
+        "normalized": {
+          "$ref": "#/$defs/FactNormalized"
+        },
+        "source_block_ids": {
+          "items": {
+            "type": "string"
+          },
+          "minItems": 1,
+          "title": "Source Block Ids",
+          "type": "array"
+        },
+        "source_pages": {
+          "items": {
+            "type": "integer"
+          },
+          "title": "Source Pages",
+          "type": "array"
+        }
+      },
+      "required": [
+        "fact_id",
+        "kind",
+        "text",
+        "source_block_ids"
+      ],
+      "title": "Fact",
+      "type": "object"
+    },
+    "FactNormalized": {
+      "additionalProperties": false,
+      "properties": {
+        "value": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Value"
+        },
+        "unit": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Unit"
+        },
+        "polarity": {
+          "default": "neutral",
+          "enum": [
+            "positive",
+            "negative",
+            "neutral"
+          ],
+          "title": "Polarity",
+          "type": "string"
+        },
+        "year": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Year"
+        }
+      },
+      "title": "FactNormalized",
+      "type": "object"
+    },
+    "KeyPoint": {
+      "additionalProperties": false,
+      "properties": {
+        "text": {
+          "minLength": 1,
+          "title": "Text",
+          "type": "string"
+        },
+        "source_block_ids": {
+          "items": {
+            "type": "string"
+          },
+          "minItems": 1,
+          "title": "Source Block Ids",
+          "type": "array"
+        }
+      },
+      "required": [
+        "text",
+        "source_block_ids"
+      ],
+      "title": "KeyPoint",
+      "type": "object"
+    }
+  },
+  "additionalProperties": false,
+  "properties": {
+    "schema_version": {
+      "const": "1.0",
+      "default": "1.0",
+      "title": "Schema Version",
+      "type": "string"
+    },
+    "doc_summary": {
+      "minLength": 1,
+      "title": "Doc Summary",
+      "type": "string"
+    },
+    "key_points": {
+      "items": {
+        "$ref": "#/$defs/KeyPoint"
+      },
+      "title": "Key Points",
+      "type": "array"
+    },
+    "chapter_plan": {
+      "items": {
+        "$ref": "#/$defs/ChapterPlanItem"
+      },
+      "minItems": 1,
+      "title": "Chapter Plan",
+      "type": "array"
+    },
+    "chapter_summaries": {
+      "items": {
+        "$ref": "#/$defs/ChapterSummary"
+      },
+      "minItems": 1,
+      "title": "Chapter Summaries",
+      "type": "array"
+    },
+    "facts": {
+      "items": {
+        "$ref": "#/$defs/Fact"
+      },
+      "title": "Facts",
+      "type": "array"
+    },
+    "coverage": {
+      "$ref": "#/$defs/Coverage"
+    }
+  },
+  "required": [
+    "doc_summary",
+    "chapter_plan",
+    "chapter_summaries",
+    "coverage"
+  ],
+  "title": "GroundedSummary",
+  "type": "object",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://doc2video.local/schemas/grounded_summary.schema.json"
+}

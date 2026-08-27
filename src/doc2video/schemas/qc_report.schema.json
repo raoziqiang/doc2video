@@ -1,0 +1,99 @@
+{
+  "$defs": {
+    "QCCheck": {
+      "additionalProperties": false,
+      "properties": {
+        "name": {
+          "minLength": 1,
+          "title": "Name",
+          "type": "string"
+        },
+        "method": {
+          "minLength": 1,
+          "title": "Method",
+          "type": "string"
+        },
+        "result": {
+          "enum": [
+            "pass",
+            "warn",
+            "fail"
+          ],
+          "title": "Result",
+          "type": "string"
+        },
+        "detail": {
+          "default": "",
+          "title": "Detail",
+          "type": "string"
+        },
+        "threshold": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Threshold"
+        }
+      },
+      "required": [
+        "name",
+        "method",
+        "result"
+      ],
+      "title": "QCCheck",
+      "type": "object"
+    }
+  },
+  "additionalProperties": false,
+  "properties": {
+    "schema_version": {
+      "const": "1.0",
+      "default": "1.0",
+      "title": "Schema Version",
+      "type": "string"
+    },
+    "status": {
+      "enum": [
+        "succeeded",
+        "succeeded_with_warnings",
+        "needs_review",
+        "failed"
+      ],
+      "title": "Status",
+      "type": "string"
+    },
+    "checks": {
+      "items": {
+        "$ref": "#/$defs/QCCheck"
+      },
+      "minItems": 1,
+      "title": "Checks",
+      "type": "array"
+    },
+    "summary": {
+      "minLength": 1,
+      "title": "Summary",
+      "type": "string"
+    },
+    "generated_at": {
+      "format": "date-time",
+      "title": "Generated At",
+      "type": "string"
+    }
+  },
+  "required": [
+    "status",
+    "checks",
+    "summary",
+    "generated_at"
+  ],
+  "title": "QCReport",
+  "type": "object",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://doc2video.local/schemas/qc_report.schema.json"
+}

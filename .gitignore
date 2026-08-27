@@ -1,0 +1,14 @@
+# 运行时生成
+workspace/
+.cache/
+*.egg-info/
+__pycache__/
+.pytest_cache/
+.ruff_cache/
+
+# 密钥与环境
+.env
+
+# 临时文件
+*.tmp
+ingress_tmp/

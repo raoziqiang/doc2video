@@ -1,0 +1,47 @@
+{
+  "additionalProperties": false,
+  "description": "P8 门禁通过后提交;final 以硬链接晋升,staging 产物保留。",
+  "properties": {
+    "schema_version": {
+      "const": "1.0",
+      "default": "1.0",
+      "title": "Schema Version",
+      "type": "string"
+    },
+    "staging_sha256": {
+      "pattern": "^[a-f0-9]{64}$",
+      "title": "Staging Sha256",
+      "type": "string"
+    },
+    "final_path": {
+      "minLength": 1,
+      "title": "Final Path",
+      "type": "string"
+    },
+    "linked_at": {
+      "format": "date-time",
+      "title": "Linked At",
+      "type": "string"
+    },
+    "qc_status": {
+      "enum": [
+        "succeeded",
+        "succeeded_with_warnings",
+        "needs_review",
+        "failed"
+      ],
+      "title": "Qc Status",
+      "type": "string"
+    }
+  },
+  "required": [
+    "staging_sha256",
+    "final_path",
+    "linked_at",
+    "qc_status"
+  ],
+  "title": "ReleaseManifest",
+  "type": "object",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://doc2video.local/schemas/release_manifest.schema.json"
+}

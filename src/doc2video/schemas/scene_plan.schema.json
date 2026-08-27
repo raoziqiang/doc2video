@@ -1,0 +1,168 @@
+{
+  "$defs": {
+    "ScenePlanScene": {
+      "additionalProperties": false,
+      "properties": {
+        "id": {
+          "pattern": "^sc\\d{2,3}$",
+          "title": "Id",
+          "type": "string"
+        },
+        "chapter": {
+          "minLength": 1,
+          "title": "Chapter",
+          "type": "string"
+        },
+        "narration": {
+          "maxLength": 180,
+          "minLength": 60,
+          "title": "Narration",
+          "type": "string"
+        },
+        "est_duration_s": {
+          "maximum": 45,
+          "minimum": 10,
+          "title": "Est Duration S",
+          "type": "number"
+        },
+        "visual_desc": {
+          "minLength": 10,
+          "title": "Visual Desc",
+          "type": "string"
+        },
+        "visual_source": {
+          "enum": [
+            "generated",
+            "extracted_image",
+            "page_crop",
+            "rendered_table",
+            "template_chart",
+            "placeholder"
+          ],
+          "title": "Visual Source",
+          "type": "string"
+        },
+        "image_prompt": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Image Prompt"
+        },
+        "extracted_ref": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Extracted Ref"
+        },
+        "aspect": {
+          "default": "16:9",
+          "enum": [
+            "16:9",
+            "9:16"
+          ],
+          "title": "Aspect",
+          "type": "string"
+        },
+        "source_block_ids": {
+          "items": {
+            "type": "string"
+          },
+          "minItems": 1,
+          "title": "Source Block Ids",
+          "type": "array"
+        },
+        "source_pages": {
+          "items": {
+            "type": "integer"
+          },
+          "title": "Source Pages",
+          "type": "array"
+        }
+      },
+      "required": [
+        "id",
+        "chapter",
+        "narration",
+        "est_duration_s",
+        "visual_desc",
+        "visual_source",
+        "source_block_ids"
+      ],
+      "title": "ScenePlanScene",
+      "type": "object"
+    },
+    "StyleTemplate": {
+      "additionalProperties": false,
+      "properties": {
+        "name": {
+          "enum": [
+            "flat-illustration",
+            "business-minimal",
+            "tech-dark",
+            "realistic-photo"
+          ],
+          "title": "Name",
+          "type": "string"
+        },
+        "prefix": {
+          "minLength": 1,
+          "title": "Prefix",
+          "type": "string"
+        },
+        "negative": {
+          "minLength": 1,
+          "title": "Negative",
+          "type": "string"
+        }
+      },
+      "required": [
+        "name",
+        "prefix",
+        "negative"
+      ],
+      "title": "StyleTemplate",
+      "type": "object"
+    }
+  },
+  "additionalProperties": false,
+  "properties": {
+    "schema_version": {
+      "const": "1.0",
+      "default": "1.0",
+      "title": "Schema Version",
+      "type": "string"
+    },
+    "style": {
+      "$ref": "#/$defs/StyleTemplate"
+    },
+    "scenes": {
+      "items": {
+        "$ref": "#/$defs/ScenePlanScene"
+      },
+      "maxItems": 20,
+      "minItems": 1,
+      "title": "Scenes",
+      "type": "array"
+    }
+  },
+  "required": [
+    "style",
+    "scenes"
+  ],
+  "title": "ScenePlan",
+  "type": "object",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://doc2video.local/schemas/scene_plan.schema.json"
+}

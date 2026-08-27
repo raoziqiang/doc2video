@@ -1,0 +1,6 @@
+为每个场景写画面描述,规则:
+1. visual_desc:主体+动作+环境;不描述画面中出现的任何文字(需要文字由后期叠加);
+2. visual_source 判定:有原文图表/表格素材→extracted_image/rendered_table/page_crop;
+   仅概念性内容→generated;
+3. 只输出 JSON:{{"scenes":[{{"id":"…","visual_desc":"…","visual_source":"…"}}]}}
+【风格前缀】{style_prefix}【讲稿】{script_json}

@@ -1,0 +1,145 @@
+{
+  "$defs": {
+    "StageState": {
+      "additionalProperties": false,
+      "properties": {
+        "status": {
+          "$ref": "#/$defs/StageStatus"
+        },
+        "fingerprint": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "stage_fingerprint(输入+配置+Prompt+模型+Schema+代码+工具)",
+          "title": "Fingerprint"
+        },
+        "artifact_manifest_ref": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "artifact_manifest.json 相对路径",
+          "title": "Artifact Manifest Ref"
+        },
+        "attempts": {
+          "default": 0,
+          "minimum": 0,
+          "title": "Attempts",
+          "type": "integer"
+        },
+        "error": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Error"
+        },
+        "started_at": {
+          "anyOf": [
+            {
+              "format": "date-time",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Started At"
+        },
+        "finished_at": {
+          "anyOf": [
+            {
+              "format": "date-time",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Finished At"
+        }
+      },
+      "required": [
+        "status"
+      ],
+      "title": "StageState",
+      "type": "object"
+    },
+    "StageStatus": {
+      "enum": [
+        "pending",
+        "running",
+        "committing",
+        "succeeded",
+        "succeeded_with_warnings",
+        "needs_review",
+        "failed",
+        "cancelled",
+        "invalidated"
+      ],
+      "title": "StageStatus",
+      "type": "string"
+    }
+  },
+  "additionalProperties": false,
+  "properties": {
+    "schema_version": {
+      "const": "1.0",
+      "default": "1.0",
+      "title": "Schema Version",
+      "type": "string"
+    },
+    "job_id": {
+      "pattern": "^\\d{8}_[a-f0-9]{6,}$",
+      "title": "Job Id",
+      "type": "string"
+    },
+    "revision": {
+      "description": "每次保存 +1;0 = 尚未落盘的初始快照",
+      "minimum": 0,
+      "title": "Revision",
+      "type": "integer"
+    },
+    "updated_at": {
+      "format": "date-time",
+      "title": "Updated At",
+      "type": "string"
+    },
+    "stages": {
+      "additionalProperties": {
+        "$ref": "#/$defs/StageState"
+      },
+      "description": "key=P0..P9",
+      "title": "Stages",
+      "type": "object"
+    }
+  },
+  "required": [
+    "job_id",
+    "revision",
+    "updated_at",
+    "stages"
+  ],
+  "title": "JobState",
+  "type": "object",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://doc2video.local/schemas/state.schema.json"
+}

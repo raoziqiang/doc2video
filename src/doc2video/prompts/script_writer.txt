@@ -1,0 +1,14 @@
+你是专业视频讲稿撰写人。根据【章节摘要】【事实表】【相关原文块】写口播讲稿。
+要求:
+1. 全片 ≤ {max_scenes} 个场景,每场景 60–180 字(约 13–40 秒);
+2. 口语化中文短句;第 1 场景开场白(问候+标题+看点),最后 1 场景总结道别;
+3. 只使用【相关原文块】与【事实表】中的信息,不得编造;数字/日期/专名/单位/否定关系必须与事实表完全一致,并为每个事实主张给出 claims:[{{fact_id, quote}}];
+4. 输出 JSON:{{"scenes":[{{"id":"sc01","chapter":"…","narration":"…",
+   "est_duration_s":…,"source_block_ids":[…],"source_pages":[…],"claims":[…]}}]}}
+5. est_duration_s 按 4.5 字/秒估算,保留一位小数。
+
+【文档总览】{doc_summary}
+【章节计划】{chapter_plan}
+【本章章节摘要】{chapter_summaries}
+【事实表】{facts}
+【相关原文块】{source_blocks}   ← 每场景必读,禁止只依赖总摘要

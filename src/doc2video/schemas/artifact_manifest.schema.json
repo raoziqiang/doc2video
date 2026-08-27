@@ -1,0 +1,78 @@
+{
+  "$defs": {
+    "ArtifactEntry": {
+      "additionalProperties": false,
+      "properties": {
+        "path": {
+          "description": "相对 Job 根的路径",
+          "minLength": 1,
+          "title": "Path",
+          "type": "string"
+        },
+        "sha256": {
+          "pattern": "^[a-f0-9]{64}$",
+          "title": "Sha256",
+          "type": "string"
+        },
+        "size": {
+          "minimum": 0,
+          "title": "Size",
+          "type": "integer"
+        },
+        "mime": {
+          "minLength": 1,
+          "title": "Mime",
+          "type": "string"
+        }
+      },
+      "required": [
+        "path",
+        "sha256",
+        "size",
+        "mime"
+      ],
+      "title": "ArtifactEntry",
+      "type": "object"
+    }
+  },
+  "additionalProperties": false,
+  "properties": {
+    "schema_version": {
+      "const": "1.0",
+      "default": "1.0",
+      "title": "Schema Version",
+      "type": "string"
+    },
+    "stage": {
+      "pattern": "^P\\d$",
+      "title": "Stage",
+      "type": "string"
+    },
+    "revision": {
+      "minimum": 1,
+      "title": "Revision",
+      "type": "integer"
+    },
+    "entries": {
+      "items": {
+        "$ref": "#/$defs/ArtifactEntry"
+      },
+      "title": "Entries",
+      "type": "array"
+    },
+    "committed_at": {
+      "format": "date-time",
+      "title": "Committed At",
+      "type": "string"
+    }
+  },
+  "required": [
+    "stage",
+    "revision",
+    "committed_at"
+  ],
+  "title": "ArtifactManifest",
+  "type": "object",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://doc2video.local/schemas/artifact_manifest.schema.json"
+}
