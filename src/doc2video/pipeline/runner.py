@@ -85,8 +85,8 @@ def run_stages(job_dir: Path, cfg: dict[str, Any], opts: Any, source: Path | Non
                 continue
             if not _upstream_ok(state, stage):
                 break  # 上游失败/未完成 → 下游保持 pending,不得运行
-            if st.status == StageStatus.invalidated:
-                # 级联失效后恢复运行:invalidated → pending → running
+            if st.status in (StageStatus.invalidated, StageStatus.needs_review):
+                # 断点续跑/人工修复后恢复:invalidated|needs_review → pending → running
                 require_transition(st.status, StageStatus.pending)
                 st.status = StageStatus.pending
             require_transition(st.status, StageStatus.running)

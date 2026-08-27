@@ -56,4 +56,8 @@ def stage_handler(stage: str):
         from .p4_scene_plan import stage_p4
 
         return stage_p4
+    if stage == "P5":
+        from .p5_assets import stage_p5
+
+        return stage_p5
     return stage_stub

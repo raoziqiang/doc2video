@@ -72,11 +72,14 @@ def test_run_empty_pipeline(tmp_path: Path, monkeypatch):
     monkeypatch.setenv("DOC2VIDEO_WORKSPACE", str(tmp_path / "ws"))
     doc = _make_doc(tmp_path)
     code = main(["run", str(doc), "--privacy", "offline"])
-    assert code == 0
+    assert code == 3  # offline 禁止云生成:占位素材触发人工复核
     job = _latest_job(tmp_path / "ws")
     state: JobState = StateStore(job).load()
-    for stage in STAGES:
+    for stage in STAGES[:5]:
         assert state.stages[stage].status in TERMINAL_OK, f"{stage} 未达终态"
+    assert state.stages["P5"].status.value == "needs_review"
+    for stage in STAGES[6:]:
+        assert state.stages[stage].status.value == "pending", f"{stage} 不应越过 P5 门禁"
     manifest = Manifest.model_validate_json((job / "manifest.json").read_text(encoding="utf-8"))
     assert manifest.doc_type == "md"
     assert manifest.privacy_mode == "offline"
@@ -96,26 +99,28 @@ def test_run_empty_pipeline(tmp_path: Path, monkeypatch):
 def test_resume_is_idempotent(tmp_path: Path, monkeypatch):
     monkeypatch.setenv("DOC2VIDEO_WORKSPACE", str(tmp_path / "ws"))
     doc = _make_doc(tmp_path)
-    assert main(["run", str(doc), "--privacy", "offline"]) == 0
+    assert main(["run", str(doc), "--privacy", "offline"]) == 3
     job = _latest_job(tmp_path / "ws")
     before = StateStore(job).load()
-    assert main(["resume", job.name]) == 0
+    assert main(["resume", job.name]) == 3
     after = StateStore(job).load()
     assert before.revision < after.revision
-    for stage in STAGES:
+    for stage in STAGES[:5]:
         # 已完成阶段不重跑(attempts 不增加)
         assert after.stages[stage].attempts == before.stages[stage].attempts
+    assert after.stages["P5"].attempts > before.stages["P5"].attempts
+    assert after.stages["P5"].status.value == "needs_review"
 
 
 def test_resume_detects_corrupted_artifact(tmp_path: Path, monkeypatch):
     """全量重验:删除已提交产物 → resume 发现脏节点 → P0 重跑恢复。"""
     monkeypatch.setenv("DOC2VIDEO_WORKSPACE", str(tmp_path / "ws"))
     doc = _make_doc(tmp_path)
-    assert main(["run", str(doc), "--privacy", "offline"]) == 0
+    assert main(["run", str(doc), "--privacy", "offline"]) == 3
     job = _latest_job(tmp_path / "ws")
     before = StateStore(job).load()
     (job / "input" / "demo.md").unlink()  # 破坏 P0 已提交产物
-    assert main(["resume", job.name]) == 0
+    assert main(["resume", job.name]) == 3
     after = StateStore(job).load()
     assert after.stages["P0"].attempts > before.stages["P0"].attempts
     assert (job / "input" / "demo.md").exists()  # 已恢复
