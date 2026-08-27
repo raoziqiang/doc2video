@@ -18,7 +18,7 @@ import re
 import subprocess
 import sys
 import time
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[2]
@@ -198,7 +198,7 @@ def test_two_pass_loudnorm() -> None:
         return
     p1 = run([FFMPEG, "-y", "-i", str(src), "-af",
               "loudnorm=I=-16:TP=-1.5:LRA=11:print_format=json", "-f", "null", "-"], check=False)
-    m = re.search(r"\{.*\}", p1.stderr or "", re.S)
+    m = re.search(r"\{.*\}", p1.stderr or "", re.DOTALL)
     measured: dict = json.loads(m.group(0)) if m else {}
     ok_measure = all(k in measured for k in ("input_i", "input_tp", "input_lra", "input_thresh"))
     out = WORK / "loudnorm_final.wav"
@@ -257,7 +257,7 @@ def main() -> int:
     test_ass_burn_cjk()
 
     report = {
-        "timestamp": datetime.now(timezone.utc).isoformat(),
+        "timestamp": datetime.now(UTC).isoformat(),
         "ffmpeg": version_line,
         "checks": results,
         "frozen": {

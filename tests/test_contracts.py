@@ -7,7 +7,7 @@ import jsonschema
 import pytest
 from pydantic import ValidationError
 
-from doc2video.contracts import ScenePlan, ScenePlanScene, ScriptScene, StyleTemplate
+from doc2video.contracts import ScenePlanScene, ScriptScene, StyleTemplate
 from doc2video.contracts.generate_schemas import REGISTRY, SCHEMAS_DIR, generate_all
 
 from .examples import NARRATION, build_examples

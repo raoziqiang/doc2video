@@ -1,6 +1,6 @@
 """全部契约的合法示例实例(过模型校验与生成 Schema)。"""
 
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 
 from doc2video.contracts import (
     ArtifactEntry,
@@ -25,8 +25,8 @@ from doc2video.contracts import (
     NativeMark,
     ParsedDocument,
     ParsedMeta,
-    QCReport,
     QCCheck,
+    QCReport,
     ReleaseManifest,
     RenderManifest,
     RenderTimeline,
@@ -51,7 +51,7 @@ NARRATION = (
 
 
 def ts() -> datetime:
-    return datetime(2026, 8, 27, 12, 0, 0, tzinfo=timezone.utc)
+    return datetime(2026, 8, 27, 12, 0, 0, tzinfo=UTC)
 
 
 def build_examples() -> dict[str, object]:

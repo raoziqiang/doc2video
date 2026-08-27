@@ -13,15 +13,15 @@ import json
 import os
 import time
 import uuid
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
 
-from .contracts import ArtifactManifest, JobState, StageState, StageStatus
+from .contracts import ArtifactManifest, JobState, StageStatus
 
 
 def utcnow() -> datetime:
-    return datetime.now(timezone.utc)
+    return datetime.now(UTC)
 
 
 def _json_default(o: Any) -> str:
@@ -177,11 +177,11 @@ class JobLock:
             self._fd.close()
             self._fd = None
 
-    def __enter__(self) -> "JobLock":
+    def __enter__(self) -> JobLock:
         self.acquire()
         return self
 
-    def __exit__(self, *exc: Any) -> bool:
+    def __exit__(self, *exc: object) -> bool:
         self.release()
         return False
 

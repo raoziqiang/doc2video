@@ -9,7 +9,7 @@ import asyncio
 import json
 import sys
 import time
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[2]
@@ -83,7 +83,7 @@ def main() -> int:
     check("词级时间戳", len(words) > 10, f"words={len(words)}(faster-whisper word_timestamps 可用)")
 
     report = {
-        "timestamp": datetime.now(timezone.utc).isoformat(),
+        "timestamp": datetime.now(UTC).isoformat(),
         "cuda_compute_types": list(cuda_types),
         "cuda_usable": device == "cuda",
         "checks": results,

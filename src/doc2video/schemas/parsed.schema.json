@@ -110,6 +110,14 @@
           "minLength": 1,
           "title": "Parser Version",
           "type": "string"
+        },
+        "notes": {
+          "description": "解析过程中的降级/不支持项说明",
+          "items": {
+            "type": "string"
+          },
+          "title": "Notes",
+          "type": "array"
         }
       },
       "required": [

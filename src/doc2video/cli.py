@@ -99,7 +99,7 @@ def cmd_run(args: argparse.Namespace) -> int:
     )
 
     ws = workspace_dir(cfg)
-    job_id = f"{datetime.now():%Y%m%d}_{uuid.uuid4().hex[:6]}"
+    job_id = f"{datetime.now().astimezone():%Y%m%d}_{uuid.uuid4().hex[:6]}"
     job_dir = ws / job_id
     job_dir.mkdir(parents=True, exist_ok=False)
 
@@ -159,7 +159,7 @@ def cmd_report(args: argparse.Namespace) -> int:
 
 def _run_cmd(argv: list[str]) -> str:
     try:
-        out = subprocess.run(argv, capture_output=True, text=True, timeout=30)
+        out = subprocess.run(argv, capture_output=True, text=True, timeout=30, check=False)
         return (out.stdout or "") + (out.stderr or "")
     except Exception as exc:  # noqa: BLE001
         return f"<执行失败: {exc}>"

@@ -7,7 +7,21 @@ CI 防漂移: tests/test_contracts.py::test_schemas_no_drift
 import json
 from pathlib import Path
 
-from . import manifest, document, summary, script, scene_plan, assets, subtitles, render, qc, egress, artifact, state, draft
+from . import (
+    artifact,
+    assets,
+    document,
+    draft,
+    egress,
+    manifest,
+    qc,
+    render,
+    scene_plan,
+    script,
+    state,
+    subtitles,
+    summary,
+)
 from .common import to_schema
 
 # 契约名 → 模型类(提交到仓库的 Schema 全集)

@@ -1,20 +1,13 @@
-"""流水线阶段。M0 交付:P0 真实实现(ingest),P1–P9 空桩 —— 验收"空管线跑通"。
+"""流水线阶段注册。P0/P1 真实实现,P2–P9 空桩(M1+ 逐个替换)。
 
-M1 起逐个替换空桩为真实实现(见技术方案 v0.2.1 第 4 章)。
+阶段处理器签名:handler(job_dir, cfg, opts, **kw) -> StageResult
 """
 
 from __future__ import annotations
 
-import shutil
 from dataclasses import dataclass, field
-from datetime import datetime
 from pathlib import Path
 from typing import Any
-
-from .. import __version__
-from ..config import config_fingerprint
-from ..contracts import Manifest
-from ..state import atomic_write_text, sha256_file, utcnow
 
 STAGES: list[str] = [f"P{i}" for i in range(10)]
 
@@ -35,45 +28,19 @@ class StageResult:
     error: str | None = None
 
 
-def _write_manifest(job_dir: Path, manifest: Manifest) -> None:
-    atomic_write_text(job_dir / "manifest.json", manifest.model_dump_json(indent=2) + "\n")
-
-
-def stage_p0(job_dir: Path, source: Path, cfg: dict[str, Any], opts: Any) -> StageResult:
-    """P0 接收与规范化:复制不可变快照 + manifest.json。"""
-    input_dir = job_dir / "input"
-    input_dir.mkdir(parents=True, exist_ok=True)
-    target = input_dir / source.name
-    shutil.copy2(source, target)  # 不可变快照(后续阶段只读)
-    sha = sha256_file(target)
-    doc_type = source.suffix.lower().lstrip(".")
-    manifest = Manifest(
-        job_id=job_dir.name,
-        source=str(source),
-        source_sha256=sha,
-        source_size=target.stat().st_size,
-        mime_type=MIME_BY_DOC_TYPE.get(doc_type, "application/octet-stream"),
-        doc_type=doc_type,  # type: ignore[arg-type]
-        privacy_mode=opts.privacy_mode,
-        created_at=utcnow(),
-        config_fingerprint=config_fingerprint(cfg),
-        pipeline_version=__version__,
-    )
-    _write_manifest(job_dir, manifest)
-    return StageResult(
-        artifacts=[
-            (f"input/{source.name}", manifest.mime_type),
-            ("manifest.json", "application/json"),
-        ]
-    )
-
-
 def stage_stub(job_dir: Path, cfg: dict[str, Any], opts: Any, stage: str) -> StageResult:
-    """M0 空桩:P1–P9 暂无实现,只提交空 artifact_manifest。"""
+    """M0 空桩:P2–P9 暂无实现,只提交空 artifact_manifest。"""
     return StageResult(artifacts=[])
 
 
 def stage_handler(stage: str):
+    """按阶段返回处理器(P0/P1 真实实现,P2–P9 空桩;懒加载避免循环导入)。"""
     if stage == "P0":
+        from .p0_ingest import stage_p0
+
         return stage_p0
+    if stage == "P1":
+        from .p1_parser import stage_p1
+
+        return stage_p1
     return stage_stub

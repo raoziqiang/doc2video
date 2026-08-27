@@ -11,7 +11,7 @@ from __future__ import annotations
 import json
 import sys
 import time
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from pathlib import Path
 
 import httpx
@@ -127,7 +127,7 @@ def main() -> int:
     SNAPSHOT.parent.mkdir(parents=True, exist_ok=True)
     SNAPSHOT.write_text(json.dumps(CONTRACT_SNAPSHOT, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
     report = {
-        "timestamp": datetime.now(timezone.utc).isoformat(),
+        "timestamp": datetime.now(UTC).isoformat(),
         "smoke": smoke,
         "frozen": {
             "endpoint_id": ENDPOINT,

@@ -1,10 +1,14 @@
 """缓存与 CLI 测试:内容寻址键、空管线跑通、resume 全量重验。"""
 
+import json
 from pathlib import Path
+
+import jsonschema
 
 from doc2video.cache import canonical_json, content_key
 from doc2video.cli import main
-from doc2video.contracts import JobState, Manifest
+from doc2video.contracts import JobState, Manifest, ParsedDocument
+from doc2video.contracts.generate_schemas import SCHEMAS_DIR
 from doc2video.pipeline import STAGES
 from doc2video.state import TERMINAL_OK, StateStore
 
@@ -45,6 +49,15 @@ def test_run_empty_pipeline(tmp_path: Path, monkeypatch):
     assert manifest.privacy_mode == "offline"
     assert (job / "input" / "demo.md").exists()
     assert (job / "events.jsonl").exists()
+    # P1 真实实现:parsed.json 存在且通过 Schema 与契约校验
+    parsed_path = job / "parsed.json"
+    assert parsed_path.exists()
+    parsed = ParsedDocument.model_validate_json(parsed_path.read_text(encoding="utf-8"))
+    assert parsed.sections and any(b.text for s in parsed.sections for b in s.blocks)
+    schema = json.loads(
+        (SCHEMAS_DIR / "parsed.schema.json").read_text(encoding="utf-8")
+    )
+    jsonschema.validate(instance=parsed.model_dump(mode="json"), schema=schema)
 
 
 def test_resume_is_idempotent(tmp_path: Path, monkeypatch):

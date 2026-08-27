@@ -65,9 +65,15 @@ video:
 
 limits:
   max_input_mb: 200
+  max_docx_uncompressed_mb: 512
+  max_docx_entries: 2000
+  max_pdf_pages: 500
   max_cloud_calls_per_job: 60
   max_cost_per_job: 5.0
   max_cost_per_day: 20.0
+
+parser:
+  ocr_min_chars_per_page: 30   # 文本层低于此值 → 判定扫描页,走 OCR
 
 retry:
   max_attempts_per_call: 3

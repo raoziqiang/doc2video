@@ -10,7 +10,7 @@ import os
 import sys
 import time
 from concurrent.futures import ThreadPoolExecutor
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from pathlib import Path
 
 import httpx
@@ -113,7 +113,7 @@ def main() -> int:
           f"耗时 {times[0]:.1f}s / {times[1]:.1f}s(并行={overlap})")
 
     report = {
-        "timestamp": datetime.now(timezone.utc).isoformat(),
+        "timestamp": datetime.now(UTC).isoformat(),
         "ollama_version": ver.get("version"),
         "models": {n: {"digest": m["digest"],
                        "size": m.get("size"),

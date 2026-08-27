@@ -30,6 +30,7 @@ class ParsedMeta(Contract):
     pages: int = Field(ge=1)
     chars: int = Field(ge=0)
     parser_version: str = Field(min_length=1)
+    notes: list[str] = Field(default_factory=list, description="解析过程中的降级/不支持项说明")
 
 
 class ParsedDocument(Contract):
