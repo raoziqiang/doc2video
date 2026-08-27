@@ -72,4 +72,8 @@ def stage_handler(stage: str):
         from .p8_qc import stage_p8
 
         return stage_p8
+    if stage == "P9":
+        from .p9_jianying import stage_p9
+
+        return stage_p9
     return stage_stub
