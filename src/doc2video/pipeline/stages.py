@@ -64,4 +64,8 @@ def stage_handler(stage: str):
         from .p6_subtitles import stage_p6
 
         return stage_p6
+    if stage == "P7":
+        from .p7_render import stage_p7
+
+        return stage_p7
     return stage_stub
