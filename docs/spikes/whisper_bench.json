@@ -1,0 +1,46 @@
+{
+  "timestamp": "2026-08-27T16:33:52.519101+00:00",
+  "cuda_compute_types": [
+    "int8_float16",
+    "float32",
+    "int8",
+    "int8_bfloat16",
+    "bfloat16",
+    "float16",
+    "int8_float32"
+  ],
+  "cuda_usable": false,
+  "checks": [
+    {
+      "name": "ctranslate2 CUDA compute types",
+      "ok": true,
+      "detail": "{'int8_float16', 'float32', 'int8', 'int8_bfloat16', 'bfloat16', 'float16', 'int8_float32'}"
+    },
+    {
+      "name": "模型加载 small",
+      "ok": true,
+      "detail": "device=cpu compute_type=int8"
+    },
+    {
+      "name": "中文识别 RTF",
+      "ok": true,
+      "detail": "rtf=0.17x(音频 9.8s, 耗时 1.7s)"
+    },
+    {
+      "name": "识别文本覆盖",
+      "ok": true,
+      "detail": "覆盖率=1.00(识别: 大家好,今天我们聊聊咖啡因和睡眠的关系,很多人靠咖啡提神,却不知道,它悄悄影响你…)"
+    },
+    {
+      "name": "词级时间戳",
+      "ok": true,
+      "detail": "words=33(faster-whisper word_timestamps 可用)"
+    }
+  ],
+  "frozen": {
+    "asr": "faster-whisper small @ cpu int8(中文 RTF=0.17x 实测)",
+    "subtitle_primary": "edge-tts 原生 WordBoundary/SentenceBoundary marks",
+    "aligner": "faster-whisper word_timestamps + 字符比例映射(确定性、零新依赖);whisperX 不引入(torch 重依赖);stable-ts 列为 M3 可选增强",
+    "asr_fallback_note": "ASR 回读仅做文本覆盖 QC 与低置信兜底,不单独支撑 <300ms 硬承诺"
+  }
+}

@@ -1,0 +1,87 @@
+{
+  "timestamp": "2026-08-27T16:25:34.962505+00:00",
+  "ollama_version": "0.33.1",
+  "models": {
+    "qwen2.5vl:3b": {
+      "digest": "fb90415cde1ef08aa669ae74b082d49b158729b6db1ab183c941417d507e71a1",
+      "size": 3200627168,
+      "context_length": 128000
+    },
+    "qwen3-14b-agent:latest": {
+      "digest": "02dc9bf0f7800b68decf0deeca65137cc19df40229503452a531eea5c056dd82",
+      "size": 9276198593,
+      "context_length": 40960
+    },
+    "qwen3-8b-long:latest": {
+      "digest": "1344d17e12d9c1324802a1339ed074361a398739465069b34359789bf9d95aee",
+      "size": 5225388193,
+      "context_length": 40960
+    },
+    "Qwen3:14b": {
+      "digest": "bdbd181c33f2ed1b31c972991882db3cf4d192569092138a7d29e973cd9debe8",
+      "size": 9276198565,
+      "context_length": 40960
+    },
+    "Qwen3:latest": {
+      "digest": "500a1f067a9f782620b40bee6f7b0c89e17ae61f686b92c24933e4ca4b2b8b41",
+      "size": 5225388164,
+      "context_length": 40960
+    }
+  },
+  "frozen": {
+    "model": "qwen3-14b-agent:latest",
+    "digest": "02dc9bf0f7800b68decf0deeca65137cc19df40229503452a531eea5c056dd82",
+    "num_ctx": 8192,
+    "think": false,
+    "structured_output": "format=json-schema(原生 /api/chat,实测可用)",
+    "temperature": 0.3,
+    "num_parallel_env": "unset"
+  },
+  "checks": [
+    {
+      "name": "候选模型",
+      "ok": true,
+      "detail": "qwen3-14b-agent:latest"
+    },
+    {
+      "name": "env OLLAMA_NUM_PARALLEL",
+      "ok": true,
+      "detail": "未设置"
+    },
+    {
+      "name": "env OLLAMA_CONTEXT_LENGTH",
+      "ok": true,
+      "detail": "未设置"
+    },
+    {
+      "name": "env OLLAMA_KV_CACHE_TYPE",
+      "ok": true,
+      "detail": "未设置"
+    },
+    {
+      "name": "env OLLAMA_FLASH_ATTENTION",
+      "ok": true,
+      "detail": "未设置"
+    },
+    {
+      "name": "结构化输出",
+      "ok": true,
+      "detail": "latency=24.9s 场景数=2"
+    },
+    {
+      "name": "空 content 坑",
+      "ok": true,
+      "detail": "content 长度=247"
+    },
+    {
+      "name": "生成 token 数",
+      "ok": true,
+      "detail": "eval_count=120"
+    },
+    {
+      "name": "服务端并发(2 并发请求)",
+      "ok": true,
+      "detail": "耗时 15.9s / 10.3s(并行=True)"
+    }
+  ]
+}

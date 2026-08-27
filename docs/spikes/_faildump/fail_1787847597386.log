@@ -1,0 +1,41 @@
+ffmpeg version 8.1.2-full_build-www.gyan.dev Copyright (c) 2000-2026 the FFmpeg developers
+  built with gcc 16.1.0 (Rev2, Built by MSYS2 project)
+  configuration: --enable-gpl --enable-version3 --enable-static --disable-w32threads --disable-autodetect --enable-cairo --enable-fontconfig --enable-iconv --enable-gnutls --enable-lcms2 --enable-libxml2 --enable-gmp --enable-bzlib --enable-lzma --enable-libsnappy --enable-zlib --enable-librist --enable-libsrt --enable-libssh --enable-libzmq --enable-avisynth --enable-libbluray --enable-libcaca --enable-libdvdnav --enable-libdvdread --enable-sdl2 --enable-libaribb24 --enable-libaribcaption --enable-libdav1d --enable-libdavs2 --enable-libopenjpeg --enable-libquirc --enable-libuavs3d --enable-libxevd --enable-libzvbi --enable-liboapv --enable-libqrencode --enable-librav1e --enable-libsvtav1 --enable-libvvenc --enable-libwebp --enable-libx264 --enable-libx265 --enable-libxavs2 --enable-libxeve --enable-libxvid --enable-libaom --enable-libjxl --enable-libsvtjpegxs --enable-libvpx --enable-mediafoundation --enable-libass --enable-frei0r --enable-libfreetype --enable-libfribidi --enable-libharfbuzz --enable-liblensfun --enable-libvidstab --enable-libvmaf --enable-libzimg --enable-amf --enable-cuda-llvm --enable-cuvid --enable-dxva2 --enable-d3d11va --enable-d3d12va --enable-ffnvcodec --enable-libvpl --enable-nvdec --enable-nvenc --enable-vaapi --enable-libshaderc --enable-vulkan --enable-libplacebo --enable-opencl --enable-libcdio --enable-openal --enable-libgme --enable-libmodplug --enable-libopenmpt --enable-libopencore-amrwb --enable-libmp3lame --enable-libshine --enable-libtheora --enable-libtwolame --enable-libvo-amrwbenc --enable-libcodec2 --enable-libilbc --enable-libgsm --enable-liblc3 --enable-libopencore-amrnb --enable-libopus --enable-libspeex --enable-libvorbis --enable-ladspa --enable-libbs2b --enable-libflite --enable-libmysofa --enable-librubberband --enable-libsoxr --enable-chromaprint --enable-whisper
+  libavutil      60. 26.102 / 60. 26.102
+  libavcodec     62. 28.102 / 62. 28.102
+  libavformat    62. 12.102 / 62. 12.102
+  libavdevice    62.  3.102 / 62.  3.102
+  libavfilter    11. 14.102 / 11. 14.102
+  libswscale      9.  5.102 /  9.  5.102
+  libswresample   6.  3.102 /  6.  3.102
+Input #0, png_pipe, from 'D:\Hermesdcu\doc2video\docs\spikes\_work\scene16.png':
+  Duration: N/A, bitrate: N/A
+  Stream #0:0: Video: png, rgb24(pc, gbr/unknown/unknown), 1920x1080 [SAR 1:1 DAR 16:9], 25 fps, 25 tbr, 25 tbn
+[aist#1:0/pcm_s16le @ 000001801d0a3500] Guessed Channel Layout: mono
+Input #1, wav, from 'D:\Hermesdcu\doc2video\docs\spikes\_work\narration.wav':
+  Metadata:
+    encoder         : Lavf62.12.102
+  Duration: 00:00:03.00, bitrate: 705 kb/s
+  Stream #1:0: Audio: pcm_s16le ([1][0][0][0] / 0x0001), 44100 Hz, mono, s16, 705 kb/s
+Stream mapping:
+  Stream #0:0 (png) -> scale:default
+  Stream #1:0 (pcm_s16le) -> adelay:default
+  fade:default -> Stream #0:0 (libx264)
+  apad:default -> Stream #0:1 (aac)
+Press [q] to stop, [?] for help
+[Parsed_crop_1 @ 000001801d03b3c0] [Eval @ 000000228f3fe8e0] Invalid chars 'x2160' at the end of expression '3840x2160'
+    Last message repeated 1 times
+[Parsed_crop_1 @ 000001801d03b3c0] Error when evaluating the expression '3840x2160'
+[Parsed_crop_1 @ 000001801d03b3c0] Failed to configure input pad on Parsed_crop_1
+[fc#0 @ 000001801b1269c0] Error reinitializing filters!
+[fc#0 @ 000001801b1269c0] Task finished with error code: -22 (Invalid argument)
+[fc#0 @ 000001801b1269c0] Terminating thread with return code -22 (Invalid argument)
+[vost#0:0/libx264 @ 000001801b1cf940] [enc:libx264 @ 000001801b1e0600] Could not open encoder before EOF
+[aost#0:1/aac @ 000001801b1cb7c0] [enc:aac @ 000001801b1dfb80] Could not open encoder before EOF
+[aost#0:1/aac @ 000001801b1cb7c0] Task finished with error code: -22 (Invalid argument)
+[aost#0:1/aac @ 000001801b1cb7c0] Terminating thread with return code -22 (Invalid argument)
+[vost#0:0/libx264 @ 000001801b1cf940] Task finished with error code: -22 (Invalid argument)
+[vost#0:0/libx264 @ 000001801b1cf940] Terminating thread with return code -22 (Invalid argument)
+[out#0/mp4 @ 000001801b148800] Nothing was written into output file, because at least one of its streams received no packets.
+frame=    0 fps=0.0 q=0.0 Lsize=       0KiB time=N/A bitrate=N/A speed=N/A elapsed=0:00:00.03    
+Conversion failed!

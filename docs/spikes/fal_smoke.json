@@ -1,0 +1,21 @@
+{
+  "timestamp": "2026-08-27T16:34:44.664844+00:00",
+  "smoke": {
+    "status": "blocked",
+    "detail": "FAL_KEY 未配置(直连需要 key;项目不依赖 Hermes 网关作为运行时)"
+  },
+  "frozen": {
+    "endpoint_id": "fal-ai/flux-2/klein/4b/base",
+    "queue_url": "https://queue.fal.run/fal-ai/flux-2/klein/4b/base",
+    "requires": "FAL_KEY(.env);冻结项见 fal_contract_snapshot.json",
+    "fallback": "无隐式 fallback;ComfyUI 本地为显式配置的可选降级",
+    "pricing": "待首次真实计费调用后回填(单位/单张成本)"
+  },
+  "checks": [
+    {
+      "name": "FAL_KEY",
+      "ok": false,
+      "detail": "未配置 → 真实 smoke blocked,契约快照按官方文档冻结"
+    }
+  ]
+}

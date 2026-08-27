@@ -10,12 +10,16 @@ privacy:
 llm:
   provider: ollama
   base_url: http://localhost:11434
-  model: qwen3-14b-agent:latest   # M0 Spike 核实本机模型名与 digest
+  # M0 Spike 实测冻结(2026-08-27, docs/spikes/ollama_bench.json)
+  model: qwen3-14b-agent:latest
+  model_digest: 02dc9bf0f7800b68decf0deeca65137cc19df40229503452a531eea5c056dd82
   num_ctx: 8192                   # 每次 API 请求显式传入
   max_output_tokens: 2048
   temperature: 0.3
-  think: false
+  think: false                    # 原生 /api/chat + think:false 实测无空 content
+  structured_output: true         # format=json-schema 实测可用(2 场景 24.9s 冷启动)
   budget_reserve_ratio: 0.10      # 预算安全余量 10%
+  app_concurrency: 1              # 应用侧保守 1;服务端并行实测有重叠,以 doctor 报告为准
 
 tts:
   provider: edge-tts
@@ -24,8 +28,10 @@ tts:
 
 image:
   provider: fal
-  endpoint: null    # M0 Spike 冻结(唯一 model_id + Schema 快照 + 价格 + 核验日期)
-  model_id: null
+  # M0 Spike 冻结(2026-08-27, docs/spikes/fal_smoke.json + fal_contract_snapshot.json)
+  endpoint: fal-ai/flux-2/klein/4b/base
+  model_id: fal-ai/flux-2/klein/4b/base
+  queue_url: https://queue.fal.run/fal-ai/flux-2/klein/4b/base
   concurrency: 3
   max_placeholder_ratio: 0.10
   max_consecutive_placeholder: 2
@@ -43,7 +49,9 @@ compose:
   fade_s: 0.3
 
 subtitle:
-  aligner: null    # M0 Spike 冻结选型
+  # M0 Spike 冻结(2026-08-27, docs/spikes/whisper_bench.json)
+  aligner: "faster-whisper word_timestamps + 字符比例映射(确定性、零新依赖)"
+  asr: "faster-whisper small @ cpu int8(中文 RTF 0.17x 实测;CUDA 12 运行库缺失,运行时自动降级)"
   max_line_chars: 18
   max_lines: 2
   min_display_s: 0.8

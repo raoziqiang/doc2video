@@ -1,0 +1,50 @@
+{
+  "timestamp": "2026-08-27T16:24:16.688360+00:00",
+  "ffmpeg": "ffmpeg version 8.1.2-full_build-www.gyan.dev Copyright (c) 2000-2026 the FFmpeg developers",
+  "checks": [
+    {
+      "name": "C.1 scene01_16x9.mp4",
+      "ok": true,
+      "detail": "dur=3.52s h264:High 1920x1080 yuv420p aac:48000Hz/2ch"
+    },
+    {
+      "name": "C.1 scene01_916.mp4",
+      "ok": true,
+      "detail": "dur=3.52s h264:High 1080x1920 yuv420p aac:48000Hz/2ch"
+    },
+    {
+      "name": "C.2 concat",
+      "ok": true,
+      "detail": "dur=7.06s(期望 ~7.0s)"
+    },
+    {
+      "name": "C.3 ducking 方向",
+      "ok": true,
+      "detail": "BGM带均值: 无duck=-27.1dB 正确方向=-32.2dB 反接对照=-27.1dB"
+    },
+    {
+      "name": "两遍 loudnorm",
+      "ok": true,
+      "detail": "measured={input_i:-25.65, input_tp:-18.10}"
+    },
+    {
+      "name": "C.4 ASS 烧录(CJK)",
+      "ok": true,
+      "detail": "fontconfig 解析微软雅黑(msyh.ttc 存在)"
+    }
+  ],
+  "frozen": {
+    "zoompan_d": "88(3.5s@25fps)",
+    "fade": {
+      "in_st": 0,
+      "in_d": 0.3,
+      "out_st": "scene_total-0.3(数值)",
+      "out_d": 0.3
+    },
+    "codec": "libx264 -crf 20 -profile:v high -level:v 4.1 -pix_fmt yuv420p",
+    "audio": "aac 128k 48000Hz stereo",
+    "ducking": "[1:a][0:a]sidechaincompress(threshold=0.03,ratio=8,attack=20,release=400)",
+    "loudnorm": "I=-16 TP=-1.5 LRA=11 两遍(measure→apply)",
+    "cjk_font": "Microsoft YaHei(msyh.ttc)"
+  }
+}

@@ -12,3 +12,7 @@ __pycache__/
 # 临时文件
 *.tmp
 ingress_tmp/
+
+# Spike 中间产物
+docs/spikes/_work/
+

@@ -1,0 +1,31 @@
+{
+  "endpoint_id": "fal-ai/flux-2/klein/4b/base",
+  "verified_at": "2026-08-27",
+  "source": "https://fal.ai/models/fal-ai/flux-2/klein/4b/base/api",
+  "auth": "Authorization: Key <FAL_KEY>(环境变量 FAL_KEY)",
+  "queue": {
+    "submit": "POST https://queue.fal.run/fal-ai/flux-2/klein/4b/base",
+    "status": "GET {QUEUE_URL}/requests/<request_id>/status",
+    "result": "GET {QUEUE_URL}/requests/<request_id>",
+    "note": "队列异步;返回 request_id;服务端可能自动重试,客户端恢复只查 request_id"
+  },
+  "input": {
+    "prompt": "string(必填)",
+    "guidance_scale": 5.0,
+    "num_inference_steps": 28,
+    "image_size": "landscape_4_3 | landscape_16_9 | portrait_16_9 等预设 或 {width,height}",
+    "num_images": 1,
+    "acceleration": "regular",
+    "enable_safety_checker": true,
+    "output_format": "png",
+    "seed": "integer(可选;不传则随机,结果回带实际 seed)"
+  },
+  "output": {
+    "images": "[{url, content_type, file_name, file_size, width, height}]",
+    "timings": "object",
+    "seed": "integer(实际使用的 seed)",
+    "has_nsfw_concepts": "[boolean]",
+    "prompt": "string(实际使用的 prompt)"
+  },
+  "headers_note": "敏感作业可关 I/O 存储(X-Fal-Store-IO)与设置媒体过期/ACL,见 Platform Headers 文档"
+}
