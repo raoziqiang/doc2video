@@ -26,6 +26,7 @@ class StageResult:
     artifacts: list[tuple[str, str]] = field(default_factory=list)
     warnings: list[str] = field(default_factory=list)
     error: str | None = None
+    needs_review: bool = False  # True → 阶段进入 needs_review(退出码 3),下游不得运行
 
 
 def stage_stub(job_dir: Path, cfg: dict[str, Any], opts: Any, stage: str) -> StageResult:
@@ -43,4 +44,12 @@ def stage_handler(stage: str):
         from .p1_parser import stage_p1
 
         return stage_p1
+    if stage == "P2":
+        from .p2_understand import stage_p2
+
+        return stage_p2
+    if stage == "P3":
+        from .p3_script import stage_p3
+
+        return stage_p3
     return stage_stub

@@ -10,6 +10,7 @@ from .assets import (
     SceneAssets,
     TimelineScene,
 )
+from .common import Contract, to_schema
 from .document import Block, ParsedDocument, ParsedMeta, Section
 from .draft import DraftExportReport
 from .egress import EgressCall, EgressManifest, EgressReport
@@ -39,6 +40,7 @@ __all__ = [
     "ChapterPlanItem",
     "ChapterSummary",
     "Claim",
+    "Contract",
     "Coverage",
     "Cue",
     "DraftExportReport",
@@ -74,4 +76,5 @@ __all__ = [
     "Subtitles",
     "TimelineScene",
     "VisualSource",
+    "to_schema",
 ]

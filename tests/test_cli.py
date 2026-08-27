@@ -4,6 +4,7 @@ import json
 from pathlib import Path
 
 import jsonschema
+import pytest
 
 from doc2video.cache import canonical_json, content_key
 from doc2video.cli import main
@@ -11,6 +12,31 @@ from doc2video.contracts import JobState, Manifest, ParsedDocument
 from doc2video.contracts.generate_schemas import SCHEMAS_DIR
 from doc2video.pipeline import STAGES
 from doc2video.state import TERMINAL_OK, StateStore
+
+from .fake_llm import FakeLLM
+
+_FAKE_RESPONSES = {
+    "【块列表】": {
+        "results": [{"block_id": "b1", "summary": "正文内容摘要。", "facts": [], "low_info": False}]
+    },
+    "【分块摘要】": {
+        "doc_summary": "这是演示文档的总摘要,内容简短,用于测试端到端流水线。",
+        "key_points": [],
+    },
+    "【事实表】": {
+        "scenes": [{
+            "id": "sc01", "chapter": "正文",
+            "narration": "大家好,今天我们用五分钟解读这份报告的核心结论,先看它的整体框架与关键数据。报告指出,咖啡因的半衰期是五到六小时,下午三点的咖啡到晚上九点仍有一半留在体内。",
+            "est_duration_s": 13.3, "source_block_ids": ["b1"], "source_pages": [1],
+        }]
+    },
+}
+
+
+@pytest.fixture(autouse=True)
+def mock_llm(monkeypatch):
+    """CLI 集成测试不依赖真实 LLM(方案:外部调用一律 mock)。"""
+    monkeypatch.setattr("doc2video.providers.build_llm", lambda cfg: FakeLLM(_FAKE_RESPONSES))
 
 
 def test_canonical_json_key_order_independent():

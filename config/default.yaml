@@ -60,6 +60,7 @@ video:
   max_duration_s: 600
   chars_per_scene_min: 60
   chars_per_scene_max: 180
+  chars_per_scene_plan: 500   # P2 章节场景数粗估:每 500 字 1 场景
   chars_per_second: 4.5
   max_scenes: 20
 

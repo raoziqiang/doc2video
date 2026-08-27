@@ -113,11 +113,12 @@ def run_stages(job_dir: Path, cfg: dict[str, Any], opts: Any, source: Path | Non
                 store.save(state)
 
                 ref = _commit_artifacts(job_dir, stage, result.artifacts)
-                final_status = (
-                    StageStatus.succeeded_with_warnings
-                    if result.warnings
-                    else StageStatus.succeeded
-                )
+                if result.needs_review:
+                    final_status = StageStatus.needs_review
+                elif result.warnings:
+                    final_status = StageStatus.succeeded_with_warnings
+                else:
+                    final_status = StageStatus.succeeded
                 require_transition(st.status, final_status)
                 st.status = final_status
                 st.artifact_manifest_ref = ref
