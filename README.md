@@ -1,0 +1,179 @@
+# doc2video
+
+文档 → 视频自动化流水线：输入 PDF、DOCX、Markdown 或 TXT，经过解析、内容理解、可追溯讲稿、分镜、素材、字幕、ffmpeg 合成、QC 和可选剪映草稿导出。
+
+项目按 P0–P9 顺序执行，阶段产物写入 Job 目录并通过 `state.json`、`artifact_manifest.<stage>.json` 和 `events.jsonl` 审计。核心链路失败时 fail closed，不发布伪成功成片。
+
+## 当前实现状态
+
+| 阶段 | 功能 | 状态 |
+|---|---|---|
+| P0 | 接收、magic 嗅探、输入快照、限额 | 已实现 |
+| P1 | PDF/DOCX/MD/TXT 解析、混合 OCR、结构与来源块 | 已实现 |
+| P2 | 本地 tokenizer 分块、grounded summary、事实表 | 已实现 |
+| P3 | 分章讲稿、claim → fact、数字/单位一致性 | 已实现 |
+| P4 | 分镜规划、Style Bible、视觉来源分类 | 已实现 |
+| P5 | 原文素材/表格渲染、生成式素材、内容寻址缓存、时间轴 | 已实现 |
+| P6 | native marks、faster-whisper、字幕兜底 | 已实现 |
+| P7 | Ken Burns、横竖屏、loudnorm、ASS 字幕烧录 | 已实现 |
+| P8 | ffprobe/decode/QC、硬链接发布、release manifest | 已实现 |
+| P9 | pyJianYingDraft 原生剪映草稿导出 | 已实现 |
+
+## 环境
+
+- Windows 11（代码保持跨平台方向）
+- Python 3.11
+- uv
+- ffmpeg/ffprobe（当前开发机已验证 8.1.2 full build）
+- Ollama（默认本地 Qwen3 14B；P2–P4 使用原生 API）
+- Microsoft YaHei：`C:\Windows\Fonts\msyh.ttc`
+- `pyJianYingDraft>=0.3.0`
+- FAL 直连为可选 Provider；密钥只放 `.env`，不要提交
+
+安装依赖：
+
+```bash
+uv sync
+```
+
+## 基本运行
+
+```bash
+uv run python -m doc2video.cli run examples/demo.md --privacy offline
+```
+
+隐私模式：
+
+- `offline`：默认；禁止云端生成，无法取得正式图片/语音时写入占位并进入 `needs_review`。
+- `approved_cloud`：仅在明确批准后使用受控云 Provider。
+- `unrestricted`：由操作者承担完整外发责任。
+
+常用选项：
+
+```bash
+# 申请生成剪映草稿
+uv run python -m doc2video.cli run examples/demo.md --privacy approved_cloud --export-draft
+
+# 检查环境
+uv run python -m doc2video.cli doctor
+
+# 查看 Job 状态和 QC 报告
+uv run python -m doc2video.cli report <job_id>
+```
+
+退出码：
+
+```text
+0  成功
+1  可重试/尚未完成
+2  硬失败
+3  需要人工复核
+```
+
+## Job 产物
+
+成功 Job 的典型目录：
+
+```text
+<workspace>/<job_id>/
+├── manifest.json
+├── parsed.json
+├── grounded_summary.json
+├── script.json
+├── scene_plan.json
+├── assets_manifest.json
+├── render_timeline.json
+├── subtitles.json
+├── render/
+│   ├── staging.mp4
+│   ├── final.mp4
+│   └── subtitles.ass
+├── render_manifest.json
+├── qc_report.json
+├── release_manifest.json
+├── final/output.mp4
+├── egress_report.json
+├── drafts/<job_id>/             # --export-draft 时生成
+│   ├── draft_content.json
+│   ├── draft_meta_info.json
+│   ├── doc2video_manifest.json
+│   └── media/
+├── draft_export_report.json
+├── artifact_manifest.P0.json … artifact_manifest.P9.json
+├── state.json
+└── events.jsonl
+```
+
+`final/output.mp4` 只有 P8 通过后才会以硬链接方式生成；`staging` 和 P7 产物保留不移动。
+
+## 发布级验收
+
+### 本地可重复 gate
+
+真实执行 Schema、runtime、pytest、Ruff、打包和 30 秒 P7→P8→P9 媒体链路：
+
+```bash
+uv run python scripts/release_gate.py --media-smoke
+```
+
+没有执行 Provider live smoke 时，报告会明确为：
+
+```text
+status=blocked
+release_ready=false
+```
+
+这是 fail-closed 设计，不是测试失败。
+
+### 完整 Provider gate
+
+```bash
+uv run python scripts/release_gate.py --media-smoke --live
+```
+
+该命令会额外执行：
+
+- ffmpeg Spike；
+- Ollama Spike；
+- faster-whisper Spike；
+- edge-tts 真实语音 smoke；
+- FAL 精确队列/下载 smoke。
+
+报告写入：
+
+```text
+docs/release/release_gate.json
+```
+
+任何 `fail` 或 `blocked` 都不会产生 `release_ready=true`。FAL 直连缺少 `FAL_KEY` 时只记录 `blocked`，不会使用 Hermes 网关结果冒充本地直连验收。
+
+完整验收矩阵见：
+
+```text
+docs/release/acceptance-matrix.md
+```
+
+## 测试与代码质量
+
+```bash
+uv run pytest -q
+uv run ruff check src tests scripts
+uv build --out-dir <temporary-dir>
+```
+
+外部模型单元测试全部使用 FakeLLM/mock；真实 Ollama、faster-whisper、ffmpeg 和 Provider smoke 只在明确的集成/发布 gate 中执行。
+
+## 已知限制
+
+- 默认 `privacy=offline` 不会偷偷调用 FAL 或 edge-tts；占位素材会触发 QC/阶段复核。
+- 本机 faster-whisper CUDA 路径缺少 `cublas64_12.dll`，当前发布 gate 会记录实际降级到 CPU int8 的结果。
+- 剪映草稿由 `pyJianYingDraft` 生成；剪映 7+ 的自动导出控件可能不可用，需要在剪映中打开草稿后人工导出。
+- P9 是可选交付通道，失败不会改写 P8 的 `qc_report.json`，也不会阻断已经发布的 MP4。
+- 超长文档自动分集属于后续阶段；一期超限时拒绝或要求人工拆分。
+
+## 安全约定
+
+- `.env` 不得提交；`.env.example` 只放模板。
+- 日志、manifest 和 release gate 报告不保存 API key、token、密码或连接凭据。
+- 外部素材路径必须先快照或位于 Job 根目录；P9 拒绝路径穿越。
+- 所有阶段产物不可变；下游写独立产物，不回写上游 QC/事实/讲稿文件。

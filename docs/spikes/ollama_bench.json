@@ -1,5 +1,5 @@
 {
-  "timestamp": "2026-08-27T16:25:34.962505+00:00",
+  "timestamp": "2026-08-27T20:43:19.460830+00:00",
   "ollama_version": "0.33.1",
   "models": {
     "qwen2.5vl:3b": {
@@ -66,22 +66,22 @@
     {
       "name": "结构化输出",
       "ok": true,
-      "detail": "latency=24.9s 场景数=2"
+      "detail": "latency=16.4s 场景数=2"
     },
     {
       "name": "空 content 坑",
       "ok": true,
-      "detail": "content 长度=247"
+      "detail": "content 长度=208"
     },
     {
       "name": "生成 token 数",
       "ok": true,
-      "detail": "eval_count=120"
+      "detail": "eval_count=109"
     },
     {
       "name": "服务端并发(2 并发请求)",
       "ok": true,
-      "detail": "耗时 15.9s / 10.3s(并行=True)"
+      "detail": "耗时 5.4s / 10.3s(并行=True)"
     }
   ]
 }

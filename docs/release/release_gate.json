@@ -1,0 +1,84 @@
+{
+  "schema_version": "1.0",
+  "generated_at": "2026-08-27T20:43:30.253198+00:00",
+  "project_version": "0.1.0",
+  "status": "blocked",
+  "release_ready": false,
+  "checks": [
+    {
+      "name": "发布范围:live smoke",
+      "status": "pass",
+      "detail": "已请求 Provider 真实 smoke"
+    },
+    {
+      "name": "Schema 无漂移",
+      "status": "pass",
+      "detail": "全部一致"
+    },
+    {
+      "name": "runtime:ffmpeg",
+      "status": "pass",
+      "detail": "C:\\Users\\Z1848\\AppData\\Local\\Microsoft\\WinGet\\Packages\\Gyan.FFmpeg_Microsoft.Winget.Source_8wekyb3d8bbwe\\ffmpeg-8.1.2-full_build\\bin\\ffmpeg.EXE"
+    },
+    {
+      "name": "runtime:ffprobe",
+      "status": "pass",
+      "detail": "C:\\Users\\Z1848\\AppData\\Local\\Microsoft\\WinGet\\Packages\\Gyan.FFmpeg_Microsoft.Winget.Source_8wekyb3d8bbwe\\ffmpeg-8.1.2-full_build\\bin\\ffprobe.EXE"
+    },
+    {
+      "name": "runtime:pyJianYingDraft",
+      "status": "pass",
+      "detail": "已安装"
+    },
+    {
+      "name": "runtime:CJK 字体",
+      "status": "pass",
+      "detail": "C:\\Windows\\Fonts\\msyh.ttc"
+    },
+    {
+      "name": "pytest",
+      "status": "pass",
+      "detail": "........................................................................ [ 46%]\n........................................................................ [ 92%]\n............                                                             [100%]\n156 passed in 22.47s (elapsed=22.9s)"
+    },
+    {
+      "name": "ruff",
+      "status": "pass",
+      "detail": "All checks passed! (elapsed=0.1s)"
+    },
+    {
+      "name": "uv build",
+      "status": "pass",
+      "detail": "Building source distribution...\nBuilding wheel from source distribution...\nSuccessfully built D:\\Z1848\\Temp\\doc2video-build-0uwms_36\\doc2video-0.1.0.tar.gz\nSuccessfully built D:\\Z1848\\Temp\\doc2video-build-0uwms_36\\doc2video-0.1.0-py3-none-any.whl (elapsed=1.9s)"
+    },
+    {
+      "name": "30s P7→P8→P9 媒体链路",
+      "status": "pass",
+      "detail": "P7/P8/P9 ok; final=True draft=True"
+    },
+    {
+      "name": "live:ffmpeg Spike",
+      "status": "pass",
+      "detail": "ffmpeg Spike — 真实执行验证\n  ffmpeg: ffmpeg version 8.1.2-full_build-www.gyan.dev Copyright (c) 2000-2026 the FFmpeg developers\n  ✓ C.1 scene01_16x9.mp4                 dur=3.52s h264:High 1920x1080 yuv420p aac:48000Hz/2ch\n  ✓ C.1 scene01_916.mp4                  dur=3.52s h264:High 1080x1920 yuv420p aac:48000Hz/2ch\n  ✓ C.2 concat                           dur=7.06s(期望 ~7.0s)\n  ✓ C.3 ducking 方向                       BGM带均值: 无duck=-27.1dB 正确方向=-32.2dB 反接对照=-27.1dB\n  ✓ 两遍 loudnorm                          measured={input_i:-25.66, input_tp:-18.10}\n  ✓ C.4 ASS 烧录(CJK)                      fontconfig 解析微软雅黑(msyh.ttc 存在)\n\n结论: 6/6 通过 → D:\\Hermesdcu\\doc2video\\docs\\spikes\\ffmpeg_verify.json (elapsed=3.5s)"
+    },
+    {
+      "name": "live:Ollama Spike",
+      "status": "pass",
+      "detail": "Ollama Spike — 本机基准\n  ollama 0.33.1  模型: qwen2.5vl:3b, qwen3-14b-agent:latest, qwen3-8b-long:latest, Qwen3:14b, Qwen3:latest\n  ✓ 候选模型                                 qwen3-14b-agent:latest\n  使用模型: qwen3-14b-agent:latest  digest=02dc9bf0f7800b68decf0deeca65137cc19df40229503452a531eea5c056dd82\n  ✓ env OLLAMA_NUM_PARALLEL              未设置\n  ✓ env OLLAMA_CONTEXT_LENGTH            未设置\n  ✓ env OLLAMA_KV_CACHE_TYPE             未设置\n  ✓ env OLLAMA_FLASH_ATTENTION           未设置\n  ✓ 结构化输出                                latency=16.4s 场景数=2\n  ✓ 空 content 坑                          content 长度=208\n  ✓ 生成 token 数                           eval_count=109\n  ✓ 服务端并发(2 并发请求)                        耗时 5.4s / 10.3s(并行=True)\n\n结论: 9/9 通过 → D:\\Hermesdcu\\doc2video\\docs\\spikes\\ollama_bench.json (elapsed=31.0s)"
+    },
+    {
+      "name": "live:faster-whisper Spike",
+      "status": "pass",
+      "detail": "faster-whisper Spike — CUDA 路径与中文基准\n  ✓ ctranslate2 CUDA compute types       {'int8_bfloat16', 'int8_float16', 'int8_float32', 'bfloat16', 'float32', 'float16', 'int8'}\n  TTS 测试音频: D:\\Hermesdcu\\doc2video\\docs\\spikes\\_work\\whisper_test.mp3 (57KB, 45 字)\n  CUDA 不可用(Library cublas64_12.dll is not found or cannot be loaded),降级 CPU int8\n  ✓ 模型加载 small                           device=cpu compute_type=int8\n  ✓ 中文识别 RTF                             rtf=0.15x(音频 9.8s, 耗时 1.5s)\n  ✓ 识别文本覆盖                               覆盖率=1.00(识别: 大家好,今天我们聊聊咖啡因和睡眠的关系,很多人靠咖啡提神,却不知道它悄悄影响你的…)\n  ✓ 词级时间戳                                words=33(faster-whisper word_timestamps 可用)\n\n结论: 5/5 通过 → D:\\Hermesdcu\\doc2video\\docs\\spikes\\whisper_bench.json (elapsed=8.2s)"
+    },
+    {
+      "name": "live:edge-tts",
+      "status": "pass",
+      "detail": "bytes=15696"
+    },
+    {
+      "name": "live:FAL 直连 smoke",
+      "status": "blocked",
+      "detail": "FAL_KEY 缺失;未伪造通过"
+    }
+  ]
+}
