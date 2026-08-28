@@ -3,6 +3,11 @@
 默认执行本地可重复检查;``--media-smoke`` 额外真实运行 30 秒 P7→P8→P9 链路;
 ``--live`` 才触发 Ollama、edge-tts、faster-whisper、ffmpeg Spike 与 FAL 直连 smoke。
 任何 fail/blocked 都 fail-closed,不生成 release-ready=true。报告不记录凭据值。
+
+S3.1 绑定机制(不可手工绕过):
+- ``run --candidate <产物>``:gate 结果与候选产物 SHA-256 绑定,落盘 ``docs/release/``;
+- ``verify <产物>``:发布前唯一校验入口——必须存在 release_ready 且 digest 一致的 gate 报告,
+  否则 fail-closed(退出码 2)。不提供任何 skip/force 旁路参数。
 """
 
 from __future__ import annotations
@@ -51,7 +56,7 @@ from doc2video.contracts import (
 from doc2video.pipeline.p7_render import stage_p7
 from doc2video.pipeline.p8_qc import stage_p8
 from doc2video.pipeline.p9_jianying import stage_p9
-from doc2video.state import atomic_write_text
+from doc2video.state import atomic_write_text, sha256_file
 
 GateStatus = Literal["pass", "warn", "blocked", "fail"]
 
@@ -90,7 +95,21 @@ def redact(text: str, secrets: list[str] | tuple[str, ...]) -> str:
     return clean
 
 
-def build_report(checks: list[GateCheck], project_version: str) -> dict[str, Any]:
+def candidate_descriptor(candidate: Path | None) -> dict[str, Any] | None:
+    """S3.1:候选产物指纹(路径/大小/SHA-256),gate 报告与其绑定。"""
+    if candidate is None:
+        return None
+    if not candidate.is_file():
+        raise FileNotFoundError(f"候选产物不存在: {candidate}")
+    return {
+        "path": str(candidate),
+        "size": candidate.stat().st_size,
+        "sha256": sha256_file(candidate),
+    }
+
+
+def build_report(checks: list[GateCheck], project_version: str,
+                 candidate: dict[str, Any] | None = None) -> dict[str, Any]:
     status = overall_status(checks)
     return {
         "schema_version": "1.0",
@@ -98,11 +117,43 @@ def build_report(checks: list[GateCheck], project_version: str) -> dict[str, Any
         "project_version": project_version,
         "status": status,
         "release_ready": status == "passed",
+        "candidate": candidate,
         "checks": [
             {"name": check.name, "status": check.status, "detail": check.detail}
             for check in checks
         ],
     }
+
+
+def verify_candidate(root: Path, candidate: Path) -> tuple[bool, str]:
+    """S3.1 发布前唯一校验入口:必须存在 release_ready 且 digest 与候选产物一致的 gate 报告。
+
+    fail-closed:无报告、报告未就绪、digest 不符均拒绝;不提供任何旁路参数。
+    """
+    if not candidate.is_file():
+        return False, f"候选产物不存在: {candidate}"
+    digest = sha256_file(candidate)
+    release_dir = root / "docs" / "release"
+    if not release_dir.is_dir():
+        return False, "docs/release/ 不存在:从未运行过 gate"
+    reports = sorted(release_dir.glob("*.json"))
+    if not reports:
+        return False, "docs/release/ 无 gate 报告:必须先运行 release_gate run"
+    rejected: str | None = None
+    for path in reports:
+        try:
+            report = json.loads(path.read_text(encoding="utf-8"))
+        except (OSError, json.JSONDecodeError):
+            continue
+        bound = report.get("candidate")
+        if not isinstance(bound, dict) or bound.get("sha256") != digest:
+            continue
+        if report.get("release_ready") is True:
+            return True, f"候选产物与 {path.name} 绑定且 gate 全绿"
+        rejected = f"gate 报告 {path.name} 与产物绑定但状态为 {report.get('status')},不可发布"
+    if rejected:
+        return False, rejected
+    return False, f"无 gate 报告绑定候选产物(前 12 位 {digest[:12]});重跑带 --candidate 的 gate"
 
 
 def _known_secrets(root: Path) -> list[str]:
@@ -375,7 +426,8 @@ def live_checks(root: Path) -> list[GateCheck]:
     ]
 
 
-def run_gate(root: Path, media_smoke: bool = False, live: bool = False) -> dict[str, Any]:
+def run_gate(root: Path, media_smoke: bool = False, live: bool = False,
+             candidate: Path | None = None) -> dict[str, Any]:
     secrets = _known_secrets(root)
     checks = [
         live_scope_check(live),
@@ -393,18 +445,40 @@ def run_gate(root: Path, media_smoke: bool = False, live: bool = False) -> dict[
         checks.append(check_media_smoke(root))
     if live:
         checks.extend(live_checks(root))
-    return build_report(checks, __version__)
+    return build_report(checks, __version__, candidate_descriptor(candidate))
 
 
-def main(argv: list[str] | None = None) -> int:
-    parser = argparse.ArgumentParser(description="doc2video 发布级验收 gate")
-    parser.add_argument("--media-smoke", action="store_true", help="真实运行 30 秒 P7/P8/P9 链路")
-    parser.add_argument("--live", action="store_true", help="运行外部 Provider/Spike smoke")
-    parser.add_argument("--report", default="docs/release/release_gate.json")
+def main(argv: list[str] | None = None, root: Path | None = None) -> int:
+    """root 仅供测试注入,不作为 CLI 参数暴露(不构成旁路)。"""
+    # 非 UTF-8 终端(重定向/老控制台)下中文输出不得崩溃:降级替换而非抛异常。
+    for stream in (sys.stdout, sys.stderr):
+        if hasattr(stream, "reconfigure"):
+            stream.reconfigure(encoding="utf-8", errors="replace")
+    parser = argparse.ArgumentParser(description="doc2video 发布级验收 gate(无旁路参数)")
+    sub = parser.add_subparsers(dest="command")
+    run_parser = sub.add_parser("run", help="执行 gate 检查(默认)")
+    verify_parser = sub.add_parser("verify", help="发布前校验:候选产物必须已绑定全绿 gate 报告")
+    for p in (run_parser, parser):
+        p.add_argument("--media-smoke", action="store_true", help="真实运行 30 秒 P7/P8/P9 链路")
+        p.add_argument("--live", action="store_true", help="运行外部 Provider/Spike smoke")
+        p.add_argument("--report", default="docs/release/release_gate.json")
+        p.add_argument("--candidate", default=None,
+                       help="候选发布产物路径,报告与其 SHA-256 绑定(供 verify 校验)")
+    verify_parser.add_argument("candidate", help="待发布产物路径")
     args = parser.parse_args(argv)
-    root = Path(__file__).resolve().parents[1]
-    report = run_gate(root, media_smoke=args.media_smoke, live=args.live)
+    root = root or Path(__file__).resolve().parents[1]
+    if args.command == "verify":
+        ok, detail = verify_candidate(root, Path(args.candidate))
+        print(f"verify: {'PASS' if ok else 'REJECT'}  {detail}")
+        return 0 if ok else 2
+    candidate = Path(args.candidate) if args.candidate else None
+    try:
+        report = run_gate(root, media_smoke=args.media_smoke, live=args.live, candidate=candidate)
+    except FileNotFoundError as exc:
+        print(f"gate 拒绝: {exc}", file=sys.stderr)
+        return 2
     report_path = root / args.report
+    report_path.parent.mkdir(parents=True, exist_ok=True)
     atomic_write_text(report_path, json.dumps(report, ensure_ascii=False, indent=2) + "\n")
     for check in report["checks"]:
         mark = {"pass": "✓", "warn": "!", "blocked": "⊘", "fail": "✗"}[check["status"]]

@@ -33,26 +33,72 @@ def new_state(job_id: str) -> JobState:
 
 
 def _commit_artifacts(job_dir: Path, stage: str, artifacts: list[tuple[str, str]]) -> str:
-    """计算产物哈希并原子提交 artifact_manifest.<stage>.json(每阶段独立文件,唯一可见提交点)。"""
+    """计算产物哈希并原子提交 artifact_manifest.<stage>.json(每阶段独立文件,唯一可见提交点)。
+
+    L-02:revision 基于已存在清单真实递增,重跑/失效后重提交可追溯。
+    """
     entries = []
     for rel, mime in artifacts:
         p = job_dir / rel
         entries.append(
             ArtifactEntry(path=rel, sha256=sha256_file(p), size=p.stat().st_size, mime=mime)
         )
-    manifest = ArtifactManifest(
-        stage=stage, revision=1, entries=entries, committed_at=utcnow()
-    )
     ref = f"artifact_manifest.{stage}.json"
-    atomic_write_text(job_dir / ref, manifest.model_dump_json(indent=2) + "\n")
+    ref_path = job_dir / ref
+    prev_revision = 0
+    if ref_path.exists():
+        try:
+            prev_revision = ArtifactManifest.model_validate_json(
+                ref_path.read_text(encoding="utf-8")
+            ).revision
+        except ValueError:
+            prev_revision = 0  # 损坏的旧清单:从 1 重新计版,不阻断提交
+    manifest = ArtifactManifest(
+        stage=stage, revision=prev_revision + 1, entries=entries, committed_at=utcnow()
+    )
+    atomic_write_text(ref_path, manifest.model_dump_json(indent=2) + "\n")
     return ref
 
 
-def _stage_fingerprint(stage: str, cfg: dict[str, Any], pipeline_version: str) -> str:
-    """M0 桩级指纹:阶段名 + 配置指纹 + 代码版本。M1 起各阶段补充输入哈希/模型/Prompt。"""
+def _stage_fingerprint(stage: str, job_dir: Path, cfg: dict[str, Any], pipeline_version: str) -> str:
+    """stage_fingerprint(方案 S1.3a, H-01):阶段 + 配置 + 上游输入哈希 + Prompt 哈希 + 模型 + 代码版本。
+
+    任一输入/Prompt/模型/配置/代码变更 → 指纹变化 → resume 重验时级联失效重跑。
+    """
     from ..config import config_fingerprint
 
-    return make_fingerprint(stage, config_fingerprint(cfg), pipeline_version)
+    return make_fingerprint(
+        stage,
+        config_fingerprint(cfg),
+        pipeline_version,
+        _inputs_digest(job_dir, stage),
+        _prompts_digest(),
+        str(cfg.get("llm", {}).get("model_digest") or cfg.get("llm", {}).get("model") or ""),
+    )
+
+
+def _inputs_digest(job_dir: Path, stage: str) -> str:
+    """上游全部已提交产物的 (路径, 哈希) 集合哈希;任一上游产物变化 → 下游失效。"""
+    idx = STAGES.index(stage)
+    parts: list[str] = []
+    for s in STAGES[:idx]:
+        ref = job_dir / f"artifact_manifest.{s}.json"
+        if not ref.exists():
+            continue
+        manifest = ArtifactManifest.model_validate_json(ref.read_text(encoding="utf-8"))
+        for e in sorted(manifest.entries, key=lambda x: x.path):
+            parts.append(f"{s}:{e.path}:{e.sha256}")
+    return make_fingerprint(*parts) if parts else ""
+
+
+def _prompts_digest() -> str:
+    """src/doc2video/prompts/ 全部提示词文件的内容哈希;Prompt 变更 → 依赖它的阶段失效。"""
+    prompts_dir = Path(__file__).resolve().parents[1] / "prompts"
+    parts: list[str] = []
+    if prompts_dir.exists():
+        for p in sorted(prompts_dir.glob("*.txt")):
+            parts.append(f"{p.name}:{sha256_file(p)}")
+    return make_fingerprint(*parts) if parts else ""
 
 
 def _upstream_ok(state: JobState, stage: str) -> bool:
@@ -85,8 +131,14 @@ def run_stages(job_dir: Path, cfg: dict[str, Any], opts: Any, source: Path | Non
                 continue
             if not _upstream_ok(state, stage):
                 break  # 上游失败/未完成 → 下游保持 pending,不得运行
-            if st.status in (StageStatus.invalidated, StageStatus.needs_review):
-                # 断点续跑/人工修复后恢复:invalidated|needs_review → pending → running
+            if st.status in (
+                StageStatus.invalidated,
+                StageStatus.needs_review,
+                StageStatus.failed,
+                StageStatus.cancelled,
+                StageStatus.committing,  # S3.2:提交中途崩溃→ 回退重跑
+            ):
+                # 断点续跑/人工修复/取消后恢复/提交中崩溃:先回到 pending,再 pending → running
                 require_transition(st.status, StageStatus.pending)
                 st.status = StageStatus.pending
             require_transition(st.status, StageStatus.running)
@@ -128,7 +180,7 @@ def run_stages(job_dir: Path, cfg: dict[str, Any], opts: Any, source: Path | Non
                 require_transition(st.status, final_status)
                 st.status = final_status
                 st.artifact_manifest_ref = ref
-                st.fingerprint = _stage_fingerprint(stage, cfg, __version__)
+                st.fingerprint = _stage_fingerprint(stage, job_dir, cfg, __version__)
                 st.finished_at = utcnow()
                 store.save(state)
                 events.append(
@@ -144,8 +196,13 @@ def run_stages(job_dir: Path, cfg: dict[str, Any], opts: Any, source: Path | Non
     return state
 
 
-def verify_and_invalidate(job_dir: Path, state: JobState) -> JobState:
-    """resume 全量重验:逐阶段复核 artifact_manifest 产物,损坏 → 从最早脏节点级联失效。"""
+def verify_and_invalidate(job_dir: Path, state: JobState, cfg: dict[str, Any]) -> JobState:
+    """resume 全量重验(方案 S1.3a):逐阶段复核产物完整性 + 指纹一致性。
+
+    产物损坏或指纹失配(输入/配置/Prompt/模型/代码任一变化) → 从最早脏节点级联失效。
+    """
+    from .. import __version__
+
     for stage in STAGES:
         st = state.stages.get(stage)
         if st is None or st.status not in TERMINAL_OK:
@@ -160,6 +217,9 @@ def verify_and_invalidate(job_dir: Path, state: JobState) -> JobState:
             )
             if verify_artifact_manifest(job_dir, manifest):
                 dirty = True
+        # 旧作业可能无指纹(升级前跑的) → 只在有记录时比对,不逼迁历史状态。
+        if not dirty and st.fingerprint is not None and st.fingerprint != _stage_fingerprint(stage, job_dir, cfg, __version__):
+            dirty = True
         if dirty:
             _invalidate_from(state, stage)
             break

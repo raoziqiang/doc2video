@@ -5,6 +5,7 @@ from __future__ import annotations
 import json
 import math
 import re
+import shutil
 import subprocess
 import time
 from pathlib import Path
@@ -77,8 +78,8 @@ def _ass_escape(text: str) -> str:
     return text.replace("\\", "\\\\").replace("{", "\\{").replace("}", "\\}").replace("\n", r"\N")
 
 
-def build_ass(subtitles: Subtitles) -> str:
-    """生成 UTF-8 ASS;时间已是全片时间轴,不再二次偏移。"""
+def build_ass(subtitles: Subtitles, font: str = "Microsoft YaHei") -> str:
+    """生成 UTF-8 ASS;时间已是全片时间轴,不再二次偏移。字体由配置指定(L-04 可审计)。"""
     lines = [
         "[Script Info]",
         "ScriptType: v4.00+",
@@ -88,7 +89,7 @@ def build_ass(subtitles: Subtitles) -> str:
         "",
         "[V4+ Styles]",
         "Format: Name, Fontname, Fontsize, PrimaryColour, SecondaryColour, OutlineColour, BackColour, Bold, Italic, Underline, StrikeOut, ScaleX, ScaleY, Spacing, Angle, BorderStyle, Outline, Shadow, Alignment, MarginL, MarginR, MarginV, Encoding",
-        "Style: Default,Microsoft YaHei,48,&H00FFFFFF,&H00000000,&H00000000,&H99000000,1,0,0,0,100,100,0,0,1,3,1,2,60,60,50,134",
+        f"Style: Default,{font},48,&H00FFFFFF,&H00000000,&H00000000,&H99000000,1,0,0,0,100,100,0,0,1,3,1,2,60,60,50,134",
         "",
         "[Events]",
         "Format: Layer, Start, End, Style, Text",
@@ -197,6 +198,20 @@ def _apply_loudnorm(source: Path, target: Path, measured: dict[str, str], cfg: d
     return argv
 
 
+def _mix_bgm(source: Path, bgm: Path, target: Path, total_s: float, cfg: dict[str, Any]) -> list[str]:
+    """BGM 混音:旁白为 sidechain 压抵 BGM;BGM 循环至全片长度。"""
+    argv = [
+        FFMPEG, "-y", "-i", str(source), "-stream_loop", "-1", "-i", str(bgm),
+        "-filter_complex", build_audio_mix_filter("[0:a]", "[1:a]", 0, total_s),
+        "-map", "0:v:0", "-map", "[aout]",
+        "-c:v", "copy", "-c:a", "aac", "-b:a", cfg["compose"]["audio_bitrate"],
+        "-ar", str(cfg["compose"]["audio_khz"]), "-ac", str(cfg["compose"]["audio_channels"]),
+        "-movflags", "+faststart", str(target),
+    ]
+    _run(argv, timeout=300)
+    return argv
+
+
 def _burn_subtitles(source: Path, ass_name: str, target: Path, render_dir: Path, cfg: dict[str, Any]) -> list[str]:
     argv = [
         FFMPEG, "-y", "-i", str(source), "-vf", f"ass={ass_name}",
@@ -224,11 +239,31 @@ def stage_p7(job_dir: Path, cfg: dict[str, Any], opts: Any, stage: str | None = 
     concat, _concat_argv = _concat(scene_paths, render_dir)
     measured = _measure_loudnorm(concat, cfg)
     staging = render_dir / "staging.mp4"
-    _apply_loudnorm(concat, staging, measured, cfg)
+    audio_argv = _apply_loudnorm(concat, staging, measured, cfg)
+    audio_source = staging
+    mix_argv: list[str] = []
+    bgm = getattr(opts, "bgm", None)
+    if bgm:
+        bgm_path = Path(bgm)
+        if not bgm_path.is_absolute() and not bgm_path.exists():
+            # L-04:BGM 已在 run 时快照入 Job,Job 内相对路径按 job_dir 解析。
+            bgm_path = job_dir / bgm_path
+        if not bgm_path.exists():
+            raise RenderError(f"BGM 文件不存在: {bgm}")
+        mixed = render_dir / "mixed.mp4"
+        mix_argv = _mix_bgm(staging, bgm_path, mixed, float(timeline.total_s), cfg)
+        audio_argv = mix_argv
+        audio_source = mixed
+    font = str(cfg.get("subtitle", {}).get("font", "Microsoft YaHei"))
     ass = render_dir / "subtitles.ass"
-    ass.write_text(build_ass(subtitles), encoding="utf-8-sig")
+    ass.write_text(build_ass(subtitles, font), encoding="utf-8-sig")
     final = render_dir / "final.mp4"
-    final_argv = _burn_subtitles(staging, ass.name, final, render_dir, cfg)
+    if getattr(opts, "no_burn_subs", False):
+        # 不烧录字幕:成片直接取混音/归一后画面;ASS 仍保留供软字幕使用。
+        shutil.copyfile(audio_source, final)
+        final_argv = audio_argv
+    else:
+        final_argv = _burn_subtitles(audio_source, ass.name, final, render_dir, cfg)
     info = probe_media(final)
     v = next((x for x in info.get("streams", []) if x.get("codec_type") == "video"), None)
     a = next((x for x in info.get("streams", []) if x.get("codec_type") == "audio"), None)
@@ -246,6 +281,8 @@ def stage_p7(job_dir: Path, cfg: dict[str, Any], opts: Any, stage: str | None = 
     ]
     render_manifest = RenderManifest(
         staging_path="render/staging.mp4", entries=entries, command_argv=final_argv,
+        bgm_mix_argv=mix_argv,
+        fonts=[font],
         timeline_ref_sha256=sha256_file(job_dir / "render_timeline.json"), committed_at=utcnow(),
     )
     atomic_write_text(job_dir / "render_manifest.json", render_manifest.model_dump_json(indent=2) + "\n")

@@ -55,6 +55,7 @@ subtitle:
   max_line_chars: 18
   max_lines: 2
   min_display_s: 0.8
+  font: Microsoft YaHei   # S2.5(L-04):字幕字体入配置并记录进 render_manifest
 
 video:
   max_duration_s: 600
@@ -72,6 +73,38 @@ limits:
   max_cloud_calls_per_job: 60
   max_cost_per_job: 5.0
   max_cost_per_day: 20.0
+
+ops:
+  # S3.4 运维配额:磁盘/工作区/缓存配额 + `doc2video cache gc`
+  cache_max_gb: 2.0         # 共享缓存上限,超出按 LRU 淘汰(garbage_collect)
+  cache_ttl_days: 14          # 缓存条目 TTL,超期即淘汰(无论体积)
+  workspace_warn_gb: 20.0     # workspace 体积软配额:超限仅告警不阻断(先诊断再清)
+  disk_free_min_gb: 1.0       # run 启动前磁盘剩余硬下限,不足直接拒绝(防写中磁盘满)
+
+qc:
+  # S2.1 QC 阈值矩阵:阈值全部参数化,发布语义由 publish 映射机器判定。
+  duration_tolerance: 0.05      # 时长相对误差上限(对照 render_timeline.total_s)
+  silence:
+    noise_db: -50               # silencedetect 噪声门限
+    detect_min_s: 2.0           # 最短检测段(ffmpeg d 参数)
+    max_longest_s: 2.0          # 最长连续静音上限,超过 → fail
+    max_ratio: 0.10             # 静音总占比上限,超过 → fail
+  black:
+    detect_min_s: 1.0
+    pix_th: 0.10
+    warn_s: 1.0                 # 最长黑帧 > warn_s → warn
+    fail_s: 2.0                 # 最长黑帧 > fail_s → fail
+  subtitle_coverage: 0.80       # 每场景字幕对旁白的原文覆盖率下限
+  loudness:
+    i_min: -19.0                # integrated LUFS 下限
+    i_max: -13.0                # integrated LUFS 上限
+    true_peak_max: -1.0         # true peak 上限(dBFS)
+  max_uncovered_blocks: 0       # P2 coverage.uncovered 超过此数 → needs_review(证据覆盖不足不放行)
+  publish:                      # status → 可否发布(晋升 final)的完整映射
+    succeeded: true
+    succeeded_with_warnings: true
+    needs_review: false
+    failed: false
 
 parser:
   ocr_min_chars_per_page: 30   # 文本层低于此值 → 判定扫描页,走 OCR

@@ -15,6 +15,9 @@ from doc2video.contracts import (
     SceneAssets,
 )
 from doc2video.pipeline.p5_assets import (
+    AssetError,
+    _assert_egress_quota,
+    _record_egress,
     compute_render_timeline,
     render_table_image,
     stage_p5,
@@ -77,6 +80,29 @@ def test_compute_render_timeline_uses_audio_duration():
     assert timeline.total_s == pytest.approx(7.5)
 
 
+def test_normalize_marks_contract():
+    """S1.1a 契约:越界裁剪、重叠去重、空文本丢弃、空输入 → None(合法降级)。"""
+    import itertools
+
+    from doc2video.pipeline.p5_assets import normalize_marks
+
+    raw = [
+        {"text": "词一", "start_s": 0.0, "end_s": 0.5},
+        {"text": "词二", "start_s": 0.4, "end_s": 0.9},   # 与上一条重叠 → 起点被裁剪到 0.5
+        {"text": "  ", "start_s": 0.9, "end_s": 1.0},       # 空文本 → 丢弃
+        {"text": "词三", "start_s": 1.0, "end_s": 5.0},     # 越界 → end 裁剪到 duration
+    ]
+    marks = normalize_marks(raw, duration_s=1.2)
+    assert marks is not None and len(marks) == 3
+    for prev, cur in itertools.pairwise(marks):
+        assert prev.end_s <= cur.start_s, "marks 不得重叠"
+    for m in marks:
+        assert 0.0 <= m.start_s < m.end_s <= 1.2, "marks 必须在音频时长内"
+    assert marks[0].text == "词一" and marks[-1].end_s == 1.2
+    assert normalize_marks([], 1.0) is None, "空 marks 属合法降级"
+    assert normalize_marks(None, 1.0) is None
+
+
 def test_stage_p5_cache_hit_avoids_second_image_call(tmp_path, monkeypatch):
     """生成式图片缓存命中:同 prompt/model/key 第二次不得调用 provider。"""
     cfg = load_config()
@@ -107,13 +133,13 @@ def test_stage_p5_cache_hit_avoids_second_image_call(tmp_path, monkeypatch):
     (job / "scene_plan.json").write_text(__import__("json").dumps(scene_plan, ensure_ascii=False), encoding="utf-8")
     calls = []
 
-    def fake_generate(prompt, out_path, cfg, privacy_mode):
+    def fake_generate(prompt, out_path, cfg, privacy_mode, job_dir):
         calls.append(prompt)
         out_path.write_bytes(b"fake-image")
         return {"provider": "fake", "model": "fake-v1", "request_id": "r1", "width": 16, "height": 9}
 
     monkeypatch.setattr("doc2video.pipeline.p5_assets.generate_image", fake_generate)
-    def fake_audio(_text, out_path, _cfg, _privacy_mode):
+    def fake_audio(_text, out_path, _cfg, _privacy_mode, _job_dir):
         _wav(out_path, 2.0)
         return {"provider": "test", "voice": "test", "placeholder": False}
 
@@ -124,3 +150,22 @@ def test_stage_p5_cache_hit_avoids_second_image_call(tmp_path, monkeypatch):
     assert len(calls) == 1
     assets = AssetsManifest.model_validate_json((job / "assets_manifest.json").read_text(encoding="utf-8"))
     assert assets.scenes[0].image is not None and not assets.scenes[0].image.placeholder
+
+
+def test_egress_quota_fail_closed_and_audited(tmp_path):
+    """外发审计:云调用逐次记录;超过每作业配额 → fail closed。"""
+    import json
+
+    job = tmp_path / "job"
+    job.mkdir()
+    cfg = {"limits": {"max_cloud_calls_per_job": 2}}
+    manifest = _assert_egress_quota(job, cfg)
+    _record_egress(job, manifest, "fal", ["prompt"], "uuid-1", "r1")
+    manifest = _assert_egress_quota(job, cfg)
+    _record_egress(job, manifest, "edge-tts", ["text", "voice"], "uuid-2", None)
+    with pytest.raises(AssetError, match="配额"):
+        _assert_egress_quota(job, cfg)
+    egress = json.loads((job / "egress_manifest.json").read_text(encoding="utf-8"))
+    assert len(egress["calls"]) == 2
+    assert [c["provider"] for c in egress["calls"]] == ["fal", "edge-tts"]
+    assert egress["calls"][0]["client_request_uuid"] == "uuid-1"

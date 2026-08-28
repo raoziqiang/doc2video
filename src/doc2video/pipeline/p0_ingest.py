@@ -37,11 +37,15 @@ def sniff_type(path: Path) -> str:
         except (zipfile.BadZipFile, OSError):
             return "unknown"
         return "unknown"
-    try:
-        head.decode("utf-8")
-    except UnicodeDecodeError:
-        return "unknown"
-    return "txt"  # 文本类;md 按扩展名区分
+    for cut in range(4):
+        # 嗅探窗口可能正好切断多字节 UTF-8 字符:允许剔除尾部 ≤3 个字节重试,
+        # 否则合法文本会被误判为 unknown(S3.4 基准实测发现)。
+        try:
+            head[: len(head) - cut or None].decode("utf-8")
+            return "txt"  # 文本类;md 按扩展名区分
+        except UnicodeDecodeError:
+            continue
+    return "unknown"
 
 
 def _check_docx_zip(path: Path, cfg: dict[str, Any]) -> None:

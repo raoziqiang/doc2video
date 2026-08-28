@@ -8,7 +8,15 @@ from .common import Contract
 
 
 class NativeMark(Contract):
-    """TTS 原生时间边界(scene-relative,秒)。可空:Provider 可能无此能力。"""
+    """TTS 原生时间边界。可空:Provider 可能无此能力。
+
+    契约语义(方案 S1.1,对齐 v02 §3.11):
+    - 时间基准为音频内相对秒数(0 = 音频起点),不含 lead 偏移;
+      P6 消费时叠加 scene_start_s + lead_s。
+    - P5 写入前经 normalize 保证:0 <= start_s < end_s <= duration_s、
+      按 start_s 有序、无重叠(越界裁剪、重叠去重)。
+    - marks 整体缺失/为空属合法状态 → P6 降级到 whisper/字符比例兜底。
+    """
 
     text: str
     start_s: float = Field(ge=0)

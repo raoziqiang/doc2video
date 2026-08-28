@@ -67,6 +67,25 @@ def _check(name: str, method: str, result: str, detail: str, threshold: str | No
     return QCCheck(name=name, method=method, result=result, detail=detail, threshold=threshold)  # type: ignore[arg-type]
 
 
+def _qc_matrix(cfg: dict[str, Any]) -> dict[str, Any]:
+    """S2.1 阈值矩阵:config/qc 为权威来源,缺失项回退代码内冻结默认值。"""
+    defaults: dict[str, Any] = {
+        "duration_tolerance": 0.05,
+        "silence": {"noise_db": -50, "detect_min_s": 2.0, "max_longest_s": 2.0, "max_ratio": 0.10},
+        "black": {"detect_min_s": 1.0, "pix_th": 0.10, "warn_s": 1.0, "fail_s": 2.0},
+        "subtitle_coverage": 0.80,
+        "loudness": {"i_min": -19.0, "i_max": -13.0, "true_peak_max": -1.0},
+        "max_uncovered_blocks": 0,
+        "publish": {"succeeded": True, "succeeded_with_warnings": True,
+                    "needs_review": False, "failed": False},
+    }
+    override = dict(cfg.get("qc") or {})
+    merged = {**defaults, **override}
+    for key in ("silence", "black", "loudness", "publish"):
+        merged[key] = {**defaults[key], **(dict(override.get(key)) if override.get(key) else {})}
+    return merged
+
+
 def _fraction(value: Any) -> float | None:
     if value is None:
         return None
@@ -161,56 +180,68 @@ def _check_spec(info: dict[str, Any], scene_plan: ScenePlan, cfg: dict[str, Any]
                   "H.264 High/yuv420p/25fps/level 4.1/AAC 48kHz stereo/faststart")
 
 
-def _check_duration(info: dict[str, Any], timeline: RenderTimeline) -> QCCheck:
+def _check_duration(info: dict[str, Any], timeline: RenderTimeline, q: dict[str, Any]) -> QCCheck:
     actual = float(info.get("format", {}).get("duration", 0.0))
     expected = float(timeline.total_s)
     error = abs(actual - expected) / expected if expected else float("inf")
-    return _check("时长", "ffprobe vs render_timeline", "pass" if error <= 0.05 else "fail",
-                  f"actual={actual:.3f}s expected={expected:.3f}s relative_error={error:.2%}", "±5%")
+    tol = float(q["duration_tolerance"])
+    return _check("时长", "ffprobe vs render_timeline", "pass" if error <= tol else "fail",
+                  f"actual={actual:.3f}s expected={expected:.3f}s relative_error={error:.2%}", f"±{tol:.0%}")
 
 
-def _check_silence(path: Path, duration: float) -> QCCheck:
+def _check_silence(path: Path, duration: float, q: dict[str, Any]) -> QCCheck:
+    sil = q["silence"]
+    max_longest = float(sil["max_longest_s"])
+    max_ratio = float(sil["max_ratio"])
+    threshold = f"最长 ≤{max_longest:g}s,总比 ≤{max_ratio:.0%}"
     out = _run([
-        FFMPEG, "-hide_banner", "-i", str(path), "-af", "silencedetect=noise=-50dB:d=2",
+        FFMPEG, "-hide_banner", "-i", str(path),
+        "-af", f"silencedetect=noise={int(sil['noise_db'])}dB:d={float(sil['detect_min_s']):g}",
         "-f", "null", "-",
     ])
     if out.returncode != 0:
-        return _check("静音", "ffmpeg silencedetect", "fail", (out.stderr or out.stdout)[-1000:], "最长 ≤2s,总比 ≤10%")
+        return _check("静音", "ffmpeg silencedetect", "fail", (out.stderr or out.stdout)[-1000:], threshold)
     text = out.stderr or ""
     durations = [float(x) for x in re.findall(r"silence_duration:\s*([\d.]+)", text)]
     total = sum(durations)
     longest = max(durations, default=0.0)
     ratio = total / duration if duration > 0 else 1.0
-    ok = longest <= 2.0 and ratio <= 0.10
+    ok = longest <= max_longest and ratio <= max_ratio
     return _check("静音", "ffmpeg silencedetect", "pass" if ok else "fail",
-                  f"silent_total={total:.3f}s ratio={ratio:.2%} longest={longest:.3f}s", "最长 ≤2s,总比 ≤10%")
+                  f"silent_total={total:.3f}s ratio={ratio:.2%} longest={longest:.3f}s", threshold)
 
 
-def _check_black(path: Path, style_name: str) -> QCCheck:
+def _check_black(path: Path, style_name: str, q: dict[str, Any]) -> QCCheck:
+    black = q["black"]
+    warn_s = float(black["warn_s"])
+    fail_s = float(black["fail_s"])
+    threshold = f">{fail_s:g}s fail, {warn_s:g}–{fail_s:g}s warn"
     if style_name == "tech-dark":
-        return _check("黑帧", "blackdetect(style calibration)", "warn", "tech-dark 深色风格跳过平均亮度硬阈值")
+        return _check("黑帧", "blackdetect(style calibration)", "warn", "tech-dark 深色风格跳过平均亮度硬阈值", threshold)
     out = _run([
-        FFMPEG, "-hide_banner", "-i", str(path), "-vf", "blackdetect=d=1.0:pix_th=0.10",
+        FFMPEG, "-hide_banner", "-i", str(path),
+        "-vf", f"blackdetect=d={float(black['detect_min_s']):g}:pix_th={float(black['pix_th']):g}",
         "-an", "-f", "null", "-",
     ])
     if out.returncode != 0:
-        return _check("黑帧", "ffmpeg blackdetect", "fail", (out.stderr or out.stdout)[-1000:])
+        return _check("黑帧", "ffmpeg blackdetect", "fail", (out.stderr or out.stdout)[-1000:], threshold)
     durations = [float(x) for x in re.findall(r"black_duration:\s*([\d.]+)", out.stderr or "")]
     longest = max(durations, default=0.0)
-    if longest > 2.0:
+    if longest > fail_s:
         result = "fail"
-    elif longest > 1.0:
+    elif longest > warn_s:
         result = "warn"
     else:
         result = "pass"
-    return _check("黑帧", "ffmpeg blackdetect", result, f"segments={len(durations)} longest={longest:.3f}s", ">2s fail, 1–2s warn")
+    return _check("黑帧", "ffmpeg blackdetect", result, f"segments={len(durations)} longest={longest:.3f}s", threshold)
 
 
 def _normalize_text(text: str) -> str:
     return "".join(ch for ch in text if ch.isalnum() or "\u4e00" <= ch <= "\u9fff")
 
 
-def _check_subtitles(subtitles: Subtitles, script: Script, timeline: RenderTimeline) -> QCCheck:
+def _check_subtitles(subtitles: Subtitles, script: Script, timeline: RenderTimeline, q: dict[str, Any]) -> QCCheck:
+    min_coverage = float(q["subtitle_coverage"])
     timeline_by_id = {x.id: x for x in timeline.scenes}
     scene_by_id = {x.id: x for x in script.scenes}
     problems: list[str] = []
@@ -236,13 +267,14 @@ def _check_subtitles(subtitles: Subtitles, script: Script, timeline: RenderTimel
         actual = _normalize_text("".join(x.text for x in cues))
         coverage = SequenceMatcher(None, expected, actual).ratio() if expected else 0.0
         coverages.append(coverage)
-        if coverage < 0.80:
-            problems.append(f"{scene_id}:原文覆盖率 {coverage:.1%}<80%")
+        if coverage < min_coverage:
+            problems.append(f"{scene_id}:原文覆盖率 {coverage:.1%}<{min_coverage:.0%}")
     if not scene_by_id:
         problems.append("讲稿无场景")
     detail = f"scenes={len(scene_by_id)} cues={len(subtitles.cues)} coverage_min={min(coverages, default=0):.1%}"
     return _check("字幕覆盖", "Subtitles + Script + Timeline", "pass" if not problems else "fail",
-                  detail + (" problems=" + ";".join(problems[:5]) if problems else ""), "每场景 Cue 存在、无越界/交叠、覆盖率 ≥80%")
+                  detail + (" problems=" + ";".join(problems[:5]) if problems else ""),
+                  f"每场景 Cue 存在、无越界/交叠、覆盖率 ≥{min_coverage:.0%}")
 
 
 def _all_blocks(parsed: Any) -> set[str]:
@@ -273,20 +305,76 @@ def _check_facts(parsed: Any, summary: GroundedSummary, script: Script) -> QCChe
                   "claims.fact_id 全命中、source_block_ids 有效、章节覆盖 100%")
 
 
-def _check_loudness(path: Path) -> QCCheck:
+def _check_loudness(path: Path, q: dict[str, Any]) -> QCCheck:
+    loud = q["loudness"]
+    i_min = float(loud["i_min"])
+    i_max = float(loud["i_max"])
+    tp_max = float(loud["true_peak_max"])
+    threshold = f"I={i_min:g}~{i_max:g} LUFS, true peak≤{tp_max:g}dBFS"
     out = _run([FFMPEG, "-hide_banner", "-i", str(path), "-af", "ebur128=framelog=verbose", "-f", "null", "-"])
     if out.returncode != 0:
-        return _check("响度", "ffmpeg ebur128", "fail", (out.stderr or out.stdout)[-1000:], "I=-16±3 LUFS, true peak≤-1dBFS")
+        return _check("响度", "ffmpeg ebur128", "fail", (out.stderr or out.stdout)[-1000:], threshold)
     text = out.stderr or ""
     integrated = re.findall(r"(?:^|\n)\s*I:\s*(-?[\d.]+)\s*LUFS", text)
     peaks = re.findall(r"(?:True peak|Peak):\s*(-?[\d.]+)\s*dBFS", text, re.IGNORECASE)
     if not integrated:
-        return _check("响度", "ffmpeg ebur128", "fail", "无法解析 integrated loudness", "I=-16±3 LUFS, true peak≤-1dBFS")
+        return _check("响度", "ffmpeg ebur128", "fail", "无法解析 integrated loudness", threshold)
     lufs = float(integrated[-1])
     peak = float(peaks[-1]) if peaks else None
-    ok = -19.0 <= lufs <= -13.0 and (peak is None or peak <= -1.0)
+    ok = i_min <= lufs <= i_max and (peak is None or peak <= tp_max)
     detail = f"I={lufs:.2f} LUFS true_peak={peak if peak is not None else '?'} dBFS"
-    return _check("响度", "ffmpeg ebur128", "pass" if ok else "fail", detail, "I=-16±3 LUFS, true peak≤-1dBFS")
+    return _check("响度", "ffmpeg ebur128", "pass" if ok else "fail", detail, threshold)
+
+
+def _number_forms(value: Any) -> list[str]:
+    """归一化数值的可匹配形式(容忍 6.0/6 这类整数浮点表示)。"""
+    if isinstance(value, bool) or value is None:
+        return []
+    if isinstance(value, float):
+        forms = [f"{value:g}"]
+        if value.is_integer():
+            forms.append(str(int(value)))
+        return forms
+    return [str(value)]
+
+
+def _check_numbers(summary: GroundedSummary, script: Script) -> QCCheck:
+    """S2.2(H-06):数字/单位复验——归一化值必须锚定在原文事实表述内,claim.quote 必须落在旁白内。"""
+    problems: list[str] = []
+    checked = 0
+    for fact in summary.facts:
+        if fact.kind not in ("number", "date", "unit"):
+            continue
+        norm = fact.normalized
+        if norm.value is not None:
+            checked += 1
+            forms = _number_forms(norm.value)
+            if forms and not any(form in fact.text for form in forms):
+                problems.append(f"{fact.fact_id}:归一化值 {norm.value} 未在原文事实中锚定")
+        if norm.unit and norm.unit not in fact.text:
+            problems.append(f"{fact.fact_id}:单位 {norm.unit} 未在原文事实中锚定")
+    for scene in script.scenes:
+        narration = _normalize_text(scene.narration)
+        for claim in scene.claims:
+            quote = _normalize_text(claim.quote)
+            if quote and quote not in narration:
+                problems.append(f"{scene.id}/{claim.fact_id}:claim.quote 不在旁白内")
+    result = "pass" if not problems else "fail"
+    detail = f"numeric_facts_checked={checked} claims={sum(len(s.claims) for s in script.scenes)}"
+    return _check("数字/单位复验", "Fact.normalized vs Fact.text + Script", result,
+                  detail + (" problems=" + ";".join(problems[:6]) if problems else ""),
+                  "归一化数值/单位必须锚定原文,claim.quote 必须在旁白内")
+
+
+def _check_coverage(summary: GroundedSummary, q: dict[str, Any]) -> tuple[QCCheck, bool]:
+    """S2.2(H-06):P2 coverage.uncovered 进门禁;超阈值 → warn 并驱动 needs_review。"""
+    uncovered = list(summary.coverage.uncovered_block_ids)
+    limit = int(q["max_uncovered_blocks"])
+    over = len(uncovered) > limit
+    detail = (f"blocks_seen={summary.coverage.blocks_seen}/{summary.coverage.blocks_total} "
+              f"uncovered={len(uncovered)}" + (f" ({','.join(uncovered[:5])})" if uncovered else ""))
+    return _check("证据覆盖", "GroundedSummary.coverage", "warn" if over else "pass", detail,
+                  f"uncovered ≤{limit}"), over
 
 
 def _check_placeholders(assets: AssetsManifest, cfg: dict[str, Any]) -> tuple[QCCheck, bool]:
@@ -312,14 +400,14 @@ def _check_placeholders(assets: AssetsManifest, cfg: dict[str, Any]) -> tuple[QC
                   f"ratio≤{max_ratio:.1%}, consecutive≤{max_consecutive}"), over
 
 
-def _write_egress_report(job_dir: Path) -> tuple[str, str]:
+def _write_egress_report(job_dir: Path) -> tuple[str, str, list]:
     calls = []
     manifest_path = job_dir / "egress_manifest.json"
     if manifest_path.exists():
         calls = EgressManifest.model_validate_json(manifest_path.read_text(encoding="utf-8")).calls
     report = EgressReport(generated_at=utcnow(), calls=calls)
     atomic_write_text(job_dir / "egress_report.json", report.model_dump_json(indent=2) + "\n")
-    return "egress_report.json", "application/json"
+    return "egress_report.json", "application/json", calls
 
 
 def _promote_hardlink(source: Path, target: Path) -> None:
@@ -334,12 +422,13 @@ def _promote_hardlink(source: Path, target: Path) -> None:
         raise
 
 
-def _write_report(job_dir: Path, checks: list[QCCheck], status: str) -> None:
+def _write_report(job_dir: Path, checks: list[QCCheck], status: str, publish_allowed: bool) -> None:
     passed = sum(x.result == "pass" for x in checks)
     warnings = sum(x.result == "warn" for x in checks)
     failed = sum(x.result == "fail" for x in checks)
-    summary = f"QC {status}: {passed} pass, {warnings} warn, {failed} fail"
-    report = QCReport(status=status, checks=checks, summary=summary, generated_at=utcnow())  # type: ignore[arg-type]
+    summary = f"QC {status}: {passed} pass, {warnings} warn, {failed} fail; publish_allowed={publish_allowed}"
+    report = QCReport(status=status, checks=checks, publish_allowed=publish_allowed,
+                      summary=summary, generated_at=utcnow())  # type: ignore[arg-type]
     atomic_write_text(job_dir / "qc_report.json", report.model_dump_json(indent=2) + "\n")
 
 
@@ -347,6 +436,7 @@ def stage_p8(job_dir: Path, cfg: dict[str, Any], opts: Any, stage: str | None = 
     """执行 P8;硬失败通过 StageResult.error 交给 runner 标记 failed,但 QC 报告仍先落盘。"""
     checks: list[QCCheck] = []
     artifacts: list[tuple[str, str]] = [("qc_report.json", "application/json")]
+    q = _qc_matrix(cfg)
     try:
         scene_plan = ScenePlan.model_validate_json((job_dir / "scene_plan.json").read_text(encoding="utf-8"))
         assets = AssetsManifest.model_validate_json((job_dir / "assets_manifest.json").read_text(encoding="utf-8"))
@@ -382,20 +472,35 @@ def stage_p8(job_dir: Path, cfg: dict[str, Any], opts: Any, stage: str | None = 
                 decoded, detail = _full_decode(candidate)
                 checks.append(_check("全量 decode", "ffmpeg decode-to-null", "pass" if decoded else "fail", detail))
                 checks.append(_check_spec(info, scene_plan, cfg, candidate))
-                checks.append(_check_duration(info, timeline))
-                checks.append(_check_silence(candidate, float(info.get("format", {}).get("duration", 0))))
-                checks.append(_check_black(candidate, scene_plan.style.name))
-                checks.append(_check_loudness(candidate))
+                checks.append(_check_duration(info, timeline, q))
+                checks.append(_check_silence(candidate, float(info.get("format", {}).get("duration", 0)), q))
+                checks.append(_check_black(candidate, scene_plan.style.name, q))
+                checks.append(_check_loudness(candidate, q))
             except QCError as exc:
                 checks.append(_check("可播放性", "ffprobe", "fail", str(exc)))
-        checks.append(_check_subtitles(subtitles, script, timeline))
+        checks.append(_check_subtitles(subtitles, script, timeline, q))
         checks.append(_check_facts(parsed_doc, summary, script))
+        checks.append(_check_numbers(summary, script))
+        coverage_check, over_coverage = _check_coverage(summary, q)
+        checks.append(coverage_check)
         placeholder_check, over_placeholder = _check_placeholders(assets, cfg)
         checks.append(placeholder_check)
-        egress_name, egress_mime = _write_egress_report(job_dir)
+        egress_name, egress_mime, egress_calls = _write_egress_report(job_dir)
         artifacts.append((egress_name, egress_mime))
+        # 外发审计一致性:offline 作业出现任何云调用即为隐私违规 → 硬失败。
+        privacy = getattr(opts, "privacy_mode", "offline")
+        if privacy == "offline" and egress_calls:
+            checks.append(_check(
+                "外发审计", "egress_manifest", "fail",
+                f"offline 作业出现 {len(egress_calls)} 次云调用,违反隐私约束",
+            ))
+        else:
+            checks.append(_check(
+                "外发审计", "egress_manifest", "pass",
+                f"云调用 {len(egress_calls)} 次(隐私模式 {privacy})",
+            ))
         hard_fail = any(x.result == "fail" for x in checks)
-        review = over_placeholder or bool(getattr(opts, "preview", False))
+        review = over_placeholder or over_coverage or bool(getattr(opts, "preview", False))
         if getattr(opts, "preview", False):
             checks.append(_check("预览隔离", "RunOptions.preview", "warn", "preview 模式永不可晋升 final"))
         if hard_fail:
@@ -406,8 +511,10 @@ def stage_p8(job_dir: Path, cfg: dict[str, Any], opts: Any, stage: str | None = 
             status = "succeeded_with_warnings"
         else:
             status = "succeeded"
-        _write_report(job_dir, checks, status)
-        if status in {"succeeded", "succeeded_with_warnings"}:
+        # S2.1:总发布决定由阈值矩阵的 publish 映射机器判定,晋升以此为唯一依据。
+        publish_allowed = bool(q["publish"].get(status, False))
+        _write_report(job_dir, checks, status, publish_allowed)
+        if publish_allowed:
             source = candidate
             final_path = job_dir / "final" / "output.mp4"
             _promote_hardlink(source, final_path)
@@ -422,5 +529,6 @@ def stage_p8(job_dir: Path, cfg: dict[str, Any], opts: Any, stage: str | None = 
             return StageResult(artifacts=artifacts, error=f"P8 硬门禁失败: {failed_names}")
         return StageResult(artifacts=artifacts, warnings=[x.detail for x in checks if x.result == "warn"], needs_review=status == "needs_review")
     except Exception as exc:  # noqa: BLE001
-        _write_report(job_dir, checks + [_check("P8 输入/契约", "Pydantic", "fail", str(exc))], "failed")
+        _write_report(job_dir, checks + [_check("P8 输入/契约", "Pydantic", "fail", str(exc))], "failed",
+                      bool(q["publish"].get("failed", False)))
         return StageResult(artifacts=artifacts, error=f"P8 执行失败: {exc}")

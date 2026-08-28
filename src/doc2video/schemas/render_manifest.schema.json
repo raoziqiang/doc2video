@@ -64,6 +64,22 @@
       "title": "Command Argv",
       "type": "array"
     },
+    "bgm_mix_argv": {
+      "description": "BGM 混音命令参数数组(审计用;无 BGM 时为空)",
+      "items": {
+        "type": "string"
+      },
+      "title": "Bgm Mix Argv",
+      "type": "array"
+    },
+    "fonts": {
+      "description": "字幕使用的字体记录(可审计/可复现, S2.5 L-04)",
+      "items": {
+        "type": "string"
+      },
+      "title": "Fonts",
+      "type": "array"
+    },
     "timeline_ref_sha256": {
       "anyOf": [
         {

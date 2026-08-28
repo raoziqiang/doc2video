@@ -223,6 +223,8 @@ def _build_native_draft(
             shutil.rmtree(draft_dir)
         os.replace(building_dir, draft_dir)
         _rewrite_native_paths(draft_dir / "draft_content.json", building_dir, draft_dir)
+        # M-06:draft_meta_info.json 同样引用素材绝对路径,必须一并重写。
+        _rewrite_native_paths(draft_dir / "draft_meta_info.json", building_dir, draft_dir)
         generated = [(path.replace(f"drafts/{temp_name}/", f"drafts/{job_dir.name}/"), mime) for path, mime in generated]
         return generated
     except Exception:

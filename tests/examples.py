@@ -168,6 +168,7 @@ def build_examples() -> dict[str, object]:
     ex["qc_report"] = QCReport(
         status="succeeded",
         checks=[QCCheck(name="可播放性", method="ffprobe", result="pass", detail="ok")],
+        publish_allowed=True,
         summary="通过",
         generated_at=ts(),
     )

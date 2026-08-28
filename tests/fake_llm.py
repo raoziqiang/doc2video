@@ -31,5 +31,5 @@ class FakeLLM(LLMProvider):
                 return payload
         raise LLMError(f"FakeLLM 无匹配文本响应: {user[:120]!r}")
 
-    def count_tokens(self, texts: list[str]) -> list[int]:
+    def count_tokens(self, texts: list[str], allow_network: bool = True) -> list[int]:
         return [self.token_counts.get(t, max(1, len(t) // 2)) for t in texts]

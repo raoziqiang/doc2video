@@ -94,7 +94,8 @@ def _chapter_scenes(llm, chapter_plan, chapter_summaries, facts, blocks_by_secti
     all_scenes: list[ScriptScene] = []
     template = _prompt_text()
     for plan, ch_sum in zip(chapter_plan, chapter_summaries):
-        section_ids = set(plan.section_ids)
+        # 保持 section_ids 原始顺序去重; set 迭代受 hash 随机化影响,会破坏 prompt 可复现性。
+        section_ids = list(dict.fromkeys(plan.section_ids))
         src_parts: list[str] = []
         chapter_facts: list[str] = []
         chapter_pages: set[int] = set()

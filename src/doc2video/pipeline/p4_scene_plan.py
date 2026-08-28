@@ -64,8 +64,9 @@ def choose_visual_source(
             return "extracted_image", extracted_refs[bid]
     if any(block_types.get(bid) == "table" for bid in source_block_ids):
         # 派生文件由后续 P5 依据同一 block 生成;此处只冻结寻址名。
-        key = source_block_ids[0] if source_block_ids else "unknown"
-        return "rendered_table", f"derived/table-{key}.png"
+        # 必须取真正的表格块:第一个引用块可能是段落,取 [0] 会冻结错误地址。
+        table_bid = next(bid for bid in source_block_ids if block_types.get(bid) == "table")
+        return "rendered_table", f"derived/table-{table_bid}.png"
     return "generated", None
 
 

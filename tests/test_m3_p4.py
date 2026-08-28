@@ -85,6 +85,17 @@ def test_visual_source_uses_rendered_table():
     assert ref is not None and ref.startswith("derived/table-")
 
 
+def test_visual_source_rendered_table_picks_real_table_block():
+    """首个引用块是段落时,寻址名必须冻结真正的表格块,不得误取 [0]。"""
+    source, ref = choose_visual_source(
+        block_types={"b1": "paragraph", "b2": "table"},
+        source_block_ids=["b1", "b2"],
+        extracted_refs={},
+    )
+    assert source == "rendered_table"
+    assert ref == "derived/table-b2.png"
+
+
 def test_visual_source_generated_for_concept_only():
     source, ref = choose_visual_source(
         block_types={"b1": "paragraph"}, source_block_ids=["b1"], extracted_refs={}

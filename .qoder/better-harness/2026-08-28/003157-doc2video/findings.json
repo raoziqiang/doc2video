@@ -1,0 +1,187 @@
+{
+  "meta": {
+    "tool": "better-harness",
+    "project": "doc2video",
+    "workspace": "d:\\Hermesdcu\\doc2video",
+    "generated_at": "2026-08-28T00:31:57+08:00",
+    "project_version": "0.1.0",
+    "evidence_base": [
+      "pytest 实跑: 156 passed in 24.75s",
+      "docs/release/release_gate.json(最近一次 --live 报告: 12/13 pass, FAL_KEY 缺失 → blocked, fail-closed)",
+      "scripts/release_gate.py, src/doc2video/state.py, pipeline/runner.py, cli.py, cache.py, config.py",
+      "pyproject.toml, config/default.yaml, .gitignore, tests/(14 个测试文件)"
+    ]
+  },
+  "summary": {
+    "overall_score": 7.8,
+    "max_score": 10,
+    "maturity_level": "advanced",
+    "headline": "内核级可靠性与发布门禁实践成熟(原子提交、状态机、契约漂移检测、fail-closed 凭据处理),156 项测试全绿;主要短板在门禁未接入 CI、无覆盖率/静态类型门禁、阶段指纹仍为桩级。",
+    "dimensions_scored": 7,
+    "strengths_count": 7,
+    "findings_count": 8,
+    "findings_by_severity": { "high": 1, "medium": 4, "low": 3 }
+  },
+  "dimensions": [
+    {
+      "id": "test_automation",
+      "name": "测试自动化",
+      "score": 8.5,
+      "rationale": "156 项测试 ~25s 全绿;FakeLLM 可替换 Provider、DOC2VIDEO_WORKSPACE 环境隔离;每个里程碑有对应测试文件。缺覆盖率度量。",
+      "evidence": ["tests/ 14 个测试文件", "tests/fake_llm.py", "pyproject.toml [tool.pytest.ini_options]"]
+    },
+    {
+      "id": "quality_gates",
+      "name": "质量门禁",
+      "score": 7.5,
+      "rationale": "release_gate 三层(local → media smoke → live),含 Schema 无漂移、pytest、ruff、uv build、30s P7→P8→P9 真实链路;缺覆盖率与静态类型门禁,且完全手工触发。",
+      "evidence": ["scripts/release_gate.py run_gate()", "docs/release/release_gate.json"]
+    },
+    {
+      "id": "ci_cd",
+      "name": "CI/CD",
+      "score": 2.0,
+      "rationale": "仓库无 .github/workflows 或任何 CI 配置;所有门禁依赖本地手工运行,提交间回归无自动拦截。",
+      "evidence": ["仓库根目录无 .github/", "release_gate.py 仅 CLI 手工调用"]
+    },
+    {
+      "id": "reliability",
+      "name": "可靠性/崩溃安全",
+      "score": 9.0,
+      "rationale": "tmp→flush→fsync→os.replace 原子提交、跨进程 JobLock、合法状态转移表、resume 全量重验 + 从最早脏节点级联失效。",
+      "evidence": ["src/doc2video/state.py", "src/doc2video/pipeline/runner.py verify_and_invalidate()"]
+    },
+    {
+      "id": "observability",
+      "name": "可观测与审计",
+      "score": 9.0,
+      "rationale": "events.jsonl 每行带序号+SHA-256 校验和(读取截断半行)、每阶段独立 artifact_manifest(产物哈希/大小)、QC 报告、doctor 环境预检。",
+      "evidence": ["state.py EventLog", "runner.py _commit_artifacts()", "cli.py cmd_doctor()"]
+    },
+    {
+      "id": "security",
+      "name": "安全与凭据",
+      "score": 9.0,
+      "rationale": "密钥仅走 .env 不进配置对象、报告输出全量 redact、凭据缺失 → blocked 不伪造通过、默认 offline 隐私模式、成本/云调用预算硬上限。",
+      "evidence": ["release_gate.py _known_secrets()/redact()", "config/default.yaml limits/privacy", ".gitignore"]
+    },
+    {
+      "id": "reproducibility",
+      "name": "确定性/可复现",
+      "score": 7.0,
+      "rationale": "M0 Spike 实测值冻结进配置并附模型 digest、内容寻址缓存命中必须过 SHA-256 校验;但阶段指纹仍为桩级(仅阶段名+配置+代码版本),Prompt/模型变更不会级联失效下游。",
+      "evidence": ["config/default.yaml(M0 冻结值)", "cache.py CacheStore", "runner.py _stage_fingerprint() 注释"]
+    }
+  ],
+  "strengths": [
+    {
+      "title": "崩溃安全的编排内核",
+      "detail": "原子写盘、跨进程排他锁、状态机合法转移表、断点续跑先全量重验产物哈希再从最早脏节点级联失效——局部崩溃不会产生半提交状态。",
+      "evidence": ["src/doc2video/state.py", "src/doc2video/pipeline/runner.py"]
+    },
+    {
+      "title": "契约与 Schema 漂移治理",
+      "detail": "16 份 JSON Schema 由 Pydantic 契约生成,release gate 重新生成并逐字节比对,漂移即 fail;LLM 输出仅做有界语法修复,禁止猜修业务字段。",
+      "evidence": ["src/doc2video/contracts/generate_schemas.py", "release_gate.py check_schemas()", "providers/base.py repair_json_syntax()"]
+    },
+    {
+      "title": "Fail-closed 分层发布门禁",
+      "detail": "本地检查 → 30s 合成媒体链路 → live Provider smoke 三层;任何 fail/blocked 都不产出 release-ready=true;FAL_KEY 缺失实测输出 blocked『未伪造通过』。",
+      "evidence": ["scripts/release_gate.py", "docs/release/release_gate.json"]
+    },
+    {
+      "title": "确定性与安全审计并重的事件日志",
+      "detail": "events.jsonl 追加式记录,每行 {seq,ts,event,data}+16 位校验和并强制 fsync;读取时丢弃尾部半行与校验失败行,不做静默容错扩散。",
+      "evidence": ["src/doc2video/state.py EventLog"]
+    },
+    {
+      "title": "经验证的缓存与凭据隔离",
+      "detail": "缓存命中必须经 SHA-256 marker 校验,无 marker 旧条目视为不可信直接删除;密钥不进配置指纹对象;报告输出前对已知密钥做最长优先替换脱敏。",
+      "evidence": ["src/doc2video/cache.py", "config.py config_fingerprint()", "release_gate.py redact()"]
+    },
+    {
+      "title": "证据驱动的配置冻结",
+      "detail": "config/default.yaml 关键值(模型、ASR、图像端点)均来自 M0 Spike 实测并回填基准文件引用与模型 digest,配置变更可追溯到证据。",
+      "evidence": ["config/default.yaml", "docs/spikes/*.json"]
+    },
+    {
+      "title": "预算与隐私硬护栏",
+      "detail": "单任务云调用/成本上限、日成本上限、重试上限、输入体积上限;隐私默认 offline,云调用需显式开关。",
+      "evidence": ["config/default.yaml limits", "cli.py cmd_run()"]
+    }
+  ],
+  "findings": [
+    {
+      "id": "F-001",
+      "severity": "high",
+      "category": "ci_cd",
+      "title": "无 CI:所有门禁依赖手工本地执行",
+      "description": "仓库没有 .github/workflows 或等价 CI 配置。release_gate、pytest、ruff 全部靠人工触发,两次手工运行之间的提交没有任何自动拦截,现有门禁的实际约束力随执行纪律波动。",
+      "evidence": ["仓库根目录无 .github/", "scripts/release_gate.py 仅支持 CLI 手工调用"],
+      "recommendation": "新增 GitHub Actions(或等价 CI):PR 触发 ruff + pytest + release_gate 本地层(不含 --live),主分支合并后追加 --media-smoke;live 层保持手工/定时。"
+    },
+    {
+      "id": "F-002",
+      "severity": "medium",
+      "category": "quality_gates",
+      "title": "测试无覆盖率度量与门禁",
+      "description": "156 项测试全部通过但未接入 pytest-cov,无法量化各里程碑模块(尤其 p7_render/p8_qc/p9_jianying 等外部工具链包装层)的覆盖情况,回归面不可见。",
+      "evidence": ["pyproject.toml dev 依赖仅 pytest/pytest-asyncio/ruff", "release_gate.py pytest 命令无 --cov"],
+      "recommendation": "引入 pytest-cov,先建立基线并纳入 release_gate 报告;对 pipeline/stage 模块设置最低阈值。"
+    },
+    {
+      "id": "F-003",
+      "severity": "medium",
+      "category": "quality_gates",
+      "title": "缺少静态类型检查门禁",
+      "description": "代码广泛使用 type: ignore 与手工字典传递(如 opts 用 type(\"Opts\", ...) 动态构造),无 mypy/pyright 门禁,契约层之外的大量接口错误只能靠运行时暴露。",
+      "evidence": ["runner.py kwargs 传递与 type: ignore[arg-type]", "release_gate.py type(\"Opts\", ...) 用法", "pyproject.toml 无类型检查工具"],
+      "recommendation": "将 RunOptions/opts 显式类型化,引入 pyright 或 mypy(可先从 contracts/state/pipeline 起步,逐步扩面)。"
+    },
+    {
+      "id": "F-004",
+      "severity": "medium",
+      "category": "reproducibility",
+      "title": "阶段指纹为桩级:Prompt/模型变更不会失效下游",
+      "description": "_stage_fingerprint 目前只含阶段名+配置指纹+代码版本,注释自陈『M1 起各阶段补充输入哈希/模型/Prompt』。当前实现下更换 Prompt 文件或模型版本后,缓存与断点续跑不会级联失效,可能静默复用过期产物。",
+      "evidence": ["src/doc2video/pipeline/runner.py _stage_fingerprint()", "make_fingerprint() 设计注释"],
+      "recommendation": "按原方案补齐:指纹纳入上游产物哈希、Prompt 文件哈希、模型名+digest、Schema 版本;配置冻结的 model_digest 可直接复用。"
+    },
+    {
+      "id": "F-005",
+      "severity": "medium",
+      "category": "reliability",
+      "title": "resume 丢失原始运行参数",
+      "description": "RunOptions(style/voice/aspect/export_draft 等)未持久化进 job manifest,cmd_resume 用默认值重建选项。断点续跑可能以不同风格/音色继续原任务,产物与首跑意图不一致。",
+      "evidence": ["cli.py cmd_run() 未写 opts", "cli.py cmd_resume() RunOptions(privacy_mode=...) 默认重建"],
+      "recommendation": "将 RunOptions 序列化进 manifest.json(或 state.json),resume 时加载原值,允许显式覆盖。"
+    },
+    {
+      "id": "F-006",
+      "severity": "low",
+      "category": "reliability",
+      "title": "doctor 检查执行两次,副作用翻倍",
+      "description": "cmd_doctor 循环打印一次 _doctor_checks(cfg),汇总计数处又调用一次:Ollama HTTP 探测、探针文件写入、磁盘检查全部重复执行,且两次结果可能不一致(如网络抖动)。",
+      "evidence": ["cli.py cmd_doctor() 第 247-252 行两次调用 _doctor_checks(cfg)"],
+      "recommendation": "先 checks = _doctor_checks(cfg) 一次,循环与汇总共用同一结果。"
+    },
+    {
+      "id": "F-007",
+      "severity": "low",
+      "category": "reliability",
+      "title": "EventLog seq 依赖全量读,单写者假设未在类内强制",
+      "description": "append 每次读取全文件计算 seq(长任务日志下 O(n)),且 seq 唯一性完全依赖外部 JobLock;EventLog 自身无写者校验,未来并发调用方容易误用。",
+      "evidence": ["state.py EventLog.append(): seq = len(self.read()) + 1"],
+      "recommendation": "维护末尾 seq 游标增量读取,或在 append 内持锁/记录写者标识,文档化单写者契约。"
+    },
+    {
+      "id": "F-008",
+      "severity": "low",
+      "category": "quality_gates",
+      "title": "CJK 字体路径硬编码为 Windows 路径",
+      "description": "doctor 与 release_gate 直接检查 C:\\Windows\\Fonts\\msyh.ttc;非 Windows 环境恒为缺失。项目当前定位 Windows 可接受,但门禁语义上应区分『环境不符』与『缺字体』。",
+      "evidence": ["cli.py _doctor_checks()", "release_gate.py check_runtime()"],
+      "recommendation": "抽取字体解析为配置项或平台适配函数;非目标平台给出 skipped 状态而非 warn。"
+    }
+  ]
+}

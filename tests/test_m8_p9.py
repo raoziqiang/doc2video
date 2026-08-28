@@ -78,6 +78,18 @@ def test_p9_export_failure_is_non_blocking(tmp_path: Path):
     assert not (job / "drafts" / job.name / "draft_content.json").exists()
 
 
+def test_p9_rewrites_draft_meta_info_paths(tmp_path: Path):
+    """M-06:draft_meta_info.json 与 draft_content.json 同样重写为最终草稿路径。"""
+    job = _rendered_job(tmp_path)
+    result = stage_p9(job, load_config(), SimpleNamespace(export_draft=True))
+    assert result.error is None
+    report = json.loads((job / "draft_export_report.json").read_text(encoding="utf-8"))
+    assert report["ok"] is True
+    meta_text = (job / report["draft_path"] / "draft_meta_info.json").read_text(encoding="utf-8")
+    assert ".building-" not in meta_text, "临时构建目录名不得残留在 meta 中"
+    assert json.loads(meta_text), "重写后仍是合法 JSON"
+
+
 def test_p9_rejects_asset_escape_without_writing_outside_package(tmp_path: Path):
     job = _rendered_job(tmp_path)
     outside = tmp_path / "outside.png"

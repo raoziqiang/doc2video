@@ -13,8 +13,8 @@
 | P2 | 本地 tokenizer 分块、grounded summary、事实表 | 已实现 |
 | P3 | 分章讲稿、claim → fact、数字/单位一致性 | 已实现 |
 | P4 | 分镜规划、Style Bible、视觉来源分类 | 已实现 |
-| P5 | 原文素材/表格渲染、生成式素材、内容寻址缓存、时间轴 | 已实现 |
-| P6 | native marks、faster-whisper、字幕兜底 | 已实现 |
+| P5 | 原文素材/表格渲染、生成式素材、内容寻址缓存、时间轴；edge-tts WordBoundary 原生 marks 生产；提交前成本/配额预算（超限 fail closed）；FAL 提交意图预持久化（崩溃后只查询不重提） | 已实现 |
+| P6 | native marks 主路径消费（缺失时 faster-whisper 词级对齐 → 字符比例兜底） | 已实现 |
 | P7 | Ken Burns、横竖屏、loudnorm、ASS 字幕烧录 | 已实现 |
 | P8 | ffprobe/decode/QC、硬链接发布、release manifest | 已实现 |
 | P9 | pyJianYingDraft 原生剪映草稿导出 | 已实现 |
@@ -57,6 +57,13 @@ uv run python -m doc2video.cli run examples/demo.md --privacy approved_cloud --e
 # 检查环境
 uv run python -m doc2video.cli doctor
 
+# 预览模式:独立目录,产物永不晋升发布
+uv run python -m doc2video.cli preview examples/demo.md --privacy offline
+
+# 缓存与磁盘配额维护(S3.4)
+uv run python -m doc2video.cli cache status
+uv run python -m doc2video.cli cache gc [--dry-run]
+
 # 查看 Job 状态和 QC 报告
 uv run python -m doc2video.cli report <job_id>
 ```
@@ -83,6 +90,8 @@ uv run python -m doc2video.cli report <job_id>
 ├── scene_plan.json
 ├── assets_manifest.json
 ├── render_timeline.json
+├── assets/<scene>_marks.json    # 云模式 edge-tts 原生词级边界（离线占位时无）
+├── pending_requests.json        # FAL 提交意图（崩溃恢复核对用）
 ├── subtitles.json
 ├── render/
 │   ├── staging.mp4
@@ -147,11 +156,27 @@ docs/release/release_gate.json
 
 任何 `fail` 或 `blocked` 都不会产生 `release_ready=true`。FAL 直连缺少 `FAL_KEY` 时只记录 `blocked`，不会使用 Hermes 网关结果冒充本地直连验收。
 
+gate 与候选产物绑定（S3.1）：发布候选必须先通过 gate 并绑定 digest，再由 `verify` 核对，无手工绕过入口：
+
+```bash
+uv run python scripts/release_gate.py --media-smoke --candidate <候选产物路径>
+uv run python scripts/release_gate.py verify <候选产物路径>
+```
+
+`verify` 只在 `docs/release/` 中找到 `release_ready=true` 且 SHA-256 一致的报告时放行；报告存在但非绿同样拒绝。
+
 完整验收矩阵见：
 
 ```text
 docs/release/acceptance-matrix.md
 ```
+
+相关工程文档：
+
+- `docs/privacy.md`：隐私模式强制点、Provider 信任矩阵、授权流程、日志脱敏规则（S3.3）
+- `docs/perf.md`：性能基准矩阵与运维配额（S3.4）；基准数字的诚实口径见文内说明
+- `docs/licenses.md`：分发形态决策矩阵与许可证结论（S3.5，分发形态未决策前仅限内部使用）
+- `tests/test_fault_injection.py`：故障注入矩阵（S3.2：截断/篡改/5xx/双 resume/缓存损坏等）
 
 ## 测试与代码质量
 
@@ -166,6 +191,8 @@ uv build --out-dir <temporary-dir>
 ## 已知限制
 
 - 默认 `privacy=offline` 不会偷偷调用 FAL 或 edge-tts；占位素材会触发 QC/阶段复核。
+- 云模式成本护栏基于**冻结预估单价**（`UNIT_PRICE_USD`，按次/按千字折算），与真实账单可能有偏差；`max_cost_per_job` / `max_cost_per_day` / `max_cloud_calls_per_job` 超限均硬失败。
+- resume 会全量重验产物完整性与阶段指纹（输入/配置/Prompt/模型/代码）；任一变化 → 从最早受影响阶段级联重跑。
 - 本机 faster-whisper CUDA 路径缺少 `cublas64_12.dll`，当前发布 gate 会记录实际降级到 CPU int8 的结果。
 - 剪映草稿由 `pyJianYingDraft` 生成；剪映 7+ 的自动导出控件可能不可用，需要在剪映中打开草稿后人工导出。
 - P9 是可选交付通道，失败不会改写 P8 的 `qc_report.json`，也不会阻断已经发布的 MP4。

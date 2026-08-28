@@ -198,6 +198,7 @@ TRANSITIONS: dict[StageStatus, set[StageStatus]] = {
         StageStatus.succeeded_with_warnings,
         StageStatus.needs_review,
         StageStatus.failed,
+        StageStatus.pending,  # S3.2:提交中途崩溃 → 回退重跑,不得卡死或伪成功
     },
     StageStatus.succeeded: {StageStatus.invalidated},
     StageStatus.succeeded_with_warnings: {StageStatus.invalidated},
@@ -236,7 +237,11 @@ class StateStore:
     def load(self) -> JobState | None:
         if not self.path.exists():
             return None
-        return JobState.model_validate_json(self.path.read_text(encoding="utf-8"))
+        try:
+            return JobState.model_validate_json(self.path.read_text(encoding="utf-8"))
+        except (ValueError, OSError) as exc:
+            # S3.2 故障注入:截断/损坏的 state 不得崩溃,也不得被当不存在(防伪成功)。
+            raise StateError(f"state.json 损坏或截断,无法安全续跑: {exc}") from exc
 
     def save(self, state: JobState) -> None:
         state.revision += 1

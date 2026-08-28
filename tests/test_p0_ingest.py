@@ -78,3 +78,12 @@ def test_p0_size_limit(tmp_path):
     src.write_bytes(b"x" * (2 * 1024 * 1024))
     with pytest.raises(RejectError, match="REJECT_TOO_LARGE"):
         run_p0(tmp_path, src, cfg=cfg_override(max_input_mb=1))
+
+
+def test_p0_utf8_boundary_split_not_rejected(tmp_path):
+    """嗅探窗口(8192B)正好切断多字节字符 → 合法文本仍须接收,不得误判 unknown。"""
+    src = tmp_path / "boundary.md"
+    # 8191 个 ASCII + 一个三字节汉字:第 8192 字节恰好落在汉字中间。
+    src.write_bytes(b"A" * 8191 + "中文内容".encode() * 100)
+    result = run_p0(tmp_path, src)
+    assert result.artifacts

@@ -1,4 +1,4 @@
-"""M9 发布级 gate 测试:fail-closed、凭据脱敏、报告结构与命令安全。"""
+"""M9 发布级 gate 测试:fail-closed、凭据脱敏、报告结构与命令安全;S3.1 候选产物绑定与不可绕过。"""
 
 from __future__ import annotations
 
@@ -10,14 +10,17 @@ from scripts.release_gate import (
     GateCheck,
     _known_secrets,
     build_report,
+    candidate_descriptor,
     check_edge_tts,
     check_fal,
     check_media_smoke,
     check_schemas,
     credential_state,
     live_scope_check,
+    main,
     overall_status,
     redact,
+    verify_candidate,
 )
 
 
@@ -175,3 +178,93 @@ def test_known_secrets_survives_dotenv_read_error(tmp_path: Path, monkeypatch):
 
     monkeypatch.setattr(dotenv, "dotenv_values", broken_values)
     assert fixture_value in _known_secrets(tmp_path)
+
+
+# ── S3.1 候选产物绑定与不可绕过(AC-11) ─────────────────────────
+
+
+def _write_bound_report(root: Path, candidate: Path, ready: bool) -> Path:
+    release_dir = root / "docs" / "release"
+    release_dir.mkdir(parents=True, exist_ok=True)
+    report = build_report([GateCheck("unit", "pass", "ok")], "0.1.0",
+                          candidate_descriptor(candidate))
+    report["release_ready"] = ready
+    if not ready:
+        report["status"] = "blocked"
+    path = release_dir / "release_gate.json"
+    path.write_text(json.dumps(report, ensure_ascii=False), encoding="utf-8")
+    return path
+
+
+def test_candidate_descriptor_binds_sha256(tmp_path: Path):
+    from doc2video.state import sha256_file
+
+    artifact = tmp_path / "output.mp4"
+    artifact.write_bytes(b"video-bytes")
+    desc = candidate_descriptor(artifact)
+    assert desc["sha256"] == sha256_file(artifact)
+    assert desc["size"] == len(b"video-bytes")
+    assert candidate_descriptor(None) is None
+
+
+def test_candidate_descriptor_rejects_missing_file(tmp_path: Path):
+    try:
+        candidate_descriptor(tmp_path / "missing.mp4")
+        raise AssertionError("不存在的候选产物必须被拒绝")
+    except FileNotFoundError:
+        pass
+
+
+def test_verify_passes_when_digest_bound_and_ready(tmp_path: Path):
+    artifact = tmp_path / "output.mp4"
+    artifact.write_bytes(b"release-bytes")
+    _write_bound_report(tmp_path, artifact, ready=True)
+    ok, detail = verify_candidate(tmp_path, artifact)
+    assert ok and "gate 全绿" in detail
+    assert main(["verify", str(artifact)], root=tmp_path) == 0
+
+
+def test_verify_rejects_after_artifact_tampering(tmp_path: Path):
+    artifact = tmp_path / "output.mp4"
+    artifact.write_bytes(b"release-bytes")
+    _write_bound_report(tmp_path, artifact, ready=True)
+    artifact.write_bytes(b"tampered-bytes")  # 产物被篡改 → digest 不符必须拒绝
+    ok, detail = verify_candidate(tmp_path, artifact)
+    assert not ok and "无 gate 报告绑定" in detail
+    assert main(["verify", str(artifact)], root=tmp_path) == 2
+
+
+def test_verify_rejects_when_gate_not_ready(tmp_path: Path):
+    artifact = tmp_path / "output.mp4"
+    artifact.write_bytes(b"release-bytes")
+    _write_bound_report(tmp_path, artifact, ready=False)
+    ok, detail = verify_candidate(tmp_path, artifact)
+    assert not ok and "不可发布" in detail
+
+
+def test_verify_rejects_without_any_gate_report(tmp_path: Path):
+    artifact = tmp_path / "output.mp4"
+    artifact.write_bytes(b"release-bytes")
+    ok, _detail = verify_candidate(tmp_path, artifact)
+    assert not ok
+    (tmp_path / "docs" / "release").mkdir(parents=True)
+    ok, detail = verify_candidate(tmp_path, artifact)
+    assert not ok and "必须先运行" in detail
+
+
+def test_verify_rejects_missing_candidate(tmp_path: Path):
+    (tmp_path / "docs" / "release").mkdir(parents=True)
+    ok, detail = verify_candidate(tmp_path, tmp_path / "missing.mp4")
+    assert not ok and "不存在" in detail
+
+
+def test_gate_cli_exposes_no_bypass_flags(capsys):
+    """不可手工绕过:CLI 不得提供 skip/force/yes 类旁路参数。"""
+    try:
+        main(["--help"])
+    except SystemExit:
+        pass
+    help_text = capsys.readouterr().out
+    for bypass in ("--skip", "--force", "--yes", "--no-gate"):
+        assert bypass not in help_text, f"gate 不得提供旁路参数 {bypass}"
+

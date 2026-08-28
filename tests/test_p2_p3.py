@@ -143,6 +143,17 @@ def test_stage_p2(parsed_job: Path, monkeypatch):
     assert all(f.source_block_ids for f in doc.facts)
 
 
+def test_stage_p2_token_count_failure_goes_needs_review(parsed_job: Path, monkeypatch):
+    """S1.3b(H-04):token 计数失败 → needs_review(退出码 3),不再抛异常落入 failed。"""
+    fake = FakeLLM(responses=_make_p2_responses())
+    monkeypatch.setattr(fake, "count_tokens", lambda texts, allow_network=True: [-1] * len(texts))
+    monkeypatch.setattr("doc2video.providers.build_llm", lambda cfg: fake)
+    result = stage_p2(parsed_job, load_config(), None)
+    assert result.needs_review, "计数失败应进审查通道,交人工处理"
+    assert result.warnings
+    assert not (parsed_job / "grounded_summary.json").exists(), "不得落盘半成品产物"
+
+
 def test_stage_p3_ok(parsed_job: Path, monkeypatch):
     from doc2video.config import load_config as lc
 

@@ -8,7 +8,7 @@ import pytest
 
 from doc2video.cache import canonical_json, content_key
 from doc2video.cli import main
-from doc2video.contracts import JobState, Manifest, ParsedDocument
+from doc2video.contracts import JobState, Manifest, ParsedDocument, StageStatus
 from doc2video.contracts.generate_schemas import SCHEMAS_DIR
 from doc2video.pipeline import STAGES
 from doc2video.state import TERMINAL_OK, StateStore
@@ -126,6 +126,26 @@ def test_resume_detects_corrupted_artifact(tmp_path: Path, monkeypatch):
     assert (job / "input" / "demo.md").exists()  # 已恢复
 
 
+def test_resume_invalidates_on_config_change(tmp_path: Path, monkeypatch):
+    """S1.3a(H-01):配置变化 → 指纹失配 → 从最早脏节点级联失效重跑。"""
+    import copy
+
+    from doc2video.config import load_config
+
+    monkeypatch.setenv("DOC2VIDEO_WORKSPACE", str(tmp_path / "ws"))
+    doc = _make_doc(tmp_path)
+    assert main(["run", str(doc), "--privacy", "offline"]) == 3
+    job = _latest_job(tmp_path / "ws")
+    before = StateStore(job).load()
+    changed = copy.deepcopy(load_config())
+    changed["llm"]["temperature"] = 0.9  # 任一配置变更 → config_fingerprint 变化
+    monkeypatch.setattr("doc2video.cli.load_config", lambda: changed)
+    assert main(["resume", job.name]) == 3
+    after = StateStore(job).load()
+    assert after.stages["P0"].attempts > before.stages["P0"].attempts, "指纹失配必须级联重跑"
+    assert after.stages["P0"].fingerprint != before.stages["P0"].fingerprint
+
+
 def test_unsupported_input_rejected(tmp_path: Path, monkeypatch):
     monkeypatch.setenv("DOC2VIDEO_WORKSPACE", str(tmp_path / "ws"))
     bad = tmp_path / "x.exe"
@@ -133,7 +153,89 @@ def test_unsupported_input_rejected(tmp_path: Path, monkeypatch):
     assert main(["run", str(bad)]) == 2
 
 
+def test_resume_after_failed_stage_reruns(tmp_path: Path, monkeypatch):
+    """failed 阶段必须能被 resume 重跑(曾崩于非法转移 failed → running)。"""
+    monkeypatch.setenv("DOC2VIDEO_WORKSPACE", str(tmp_path / "ws"))
+    doc = _make_doc(tmp_path)
+    assert main(["run", str(doc), "--privacy", "offline"]) == 3
+    job = _latest_job(tmp_path / "ws")
+    store = StateStore(job)
+    state = store.load()
+    # 模拟 P2 曾因 LLM 宕机失败;后续阶段保持原终态。
+    state.stages["P2"].status = StageStatus.failed
+    state.stages["P2"].error = "模拟失败"
+    store.save(state)
+    assert main(["resume", job.name]) == 3  # 不得抛 StateError;P5 仍 needs_review
+    attempts_before = state.stages["P2"].attempts
+    after = StateStore(job).load()
+    assert after.stages["P2"].status in TERMINAL_OK
+    assert after.stages["P2"].attempts > attempts_before
+
+
+def test_resume_missing_manifest_fails_cleanly(tmp_path: Path, monkeypatch):
+    """P0 未完成且无 manifest.json 时, resume 返回退出码 2,不抛 FileNotFoundError。"""
+    monkeypatch.setenv("DOC2VIDEO_WORKSPACE", str(tmp_path / "ws"))
+    from doc2video.pipeline.runner import new_state
+
+    ws = tmp_path / "ws"
+    job = ws / "20260828_a1b2c3"
+    job.mkdir(parents=True)
+    state = new_state(job.name)
+    state.stages["P0"].status = StageStatus.failed
+    state.stages["P0"].error = "REJECT_MALFORMED"
+    StateStore(job).save(state)
+    assert main(["resume", job.name]) == 2
+
+
+def test_run_persists_run_options_for_resume(tmp_path: Path, monkeypatch):
+    """run 持久化生效参数;resume 不得静默丢参(如云模式/画幅)。"""
+    monkeypatch.setenv("DOC2VIDEO_WORKSPACE", str(tmp_path / "ws"))
+    doc = _make_doc(tmp_path)
+    assert main(["run", str(doc), "--privacy", "offline", "--aspect", "9:16", "--style", "flat-illustration"]) == 3
+    job = _latest_job(tmp_path / "ws")
+    opts = json.loads((job / "run_options.json").read_text(encoding="utf-8"))
+    assert opts["privacy_mode"] == "offline"
+    assert opts["aspect"] == "9:16"
+    assert main(["resume", job.name]) == 3
+
+
+def test_run_max_duration_enforced(tmp_path: Path, monkeypatch):
+    """成片总时长超过 --max-duration 上限 → P5 硬失败,不得静默产出长片。"""
+    monkeypatch.setenv("DOC2VIDEO_WORKSPACE", str(tmp_path / "ws"))
+    doc = _make_doc(tmp_path)
+    assert main(["run", str(doc), "--privacy", "offline", "--max-duration", "1"]) == 2
+    job = _latest_job(tmp_path / "ws")
+    state = StateStore(job).load()
+    assert state.stages["P5"].status == StageStatus.failed
+    assert "总时长" in (state.stages["P5"].error or "")
+
+
+def test_run_llm_cloud_fails_closed(tmp_path: Path, monkeypatch):
+    """--llm cloud 未实现 → 显式拒绝,不得静默回退。"""
+    monkeypatch.setenv("DOC2VIDEO_WORKSPACE", str(tmp_path / "ws"))
+    doc = _make_doc(tmp_path)
+    assert main(["run", str(doc), "--llm", "cloud"]) == 2
+
+
 def test_doctor_runs(monkeypatch):
     monkeypatch.setenv("DOC2VIDEO_WORKSPACE", str(Path.home() / "Temp" / "doc2video-doctor-ws"))
     code = main(["doctor"])
     assert code in (0, 2)  # 环境项失败返回 2,但不崩溃
+
+
+def test_commit_artifacts_revision_increments(tmp_path: Path):
+    """L-02:重提交时 revision 基于已有清单真实递增;损坏清单从 1 重计不阻断。"""
+    from doc2video.pipeline.runner import _commit_artifacts
+
+    job = tmp_path / "job"
+    job.mkdir()
+    (job / "a.txt").write_text("x", encoding="utf-8")
+    _commit_artifacts(job, "P0", [("a.txt", "text/plain")])
+    _commit_artifacts(job, "P0", [("a.txt", "text/plain")])
+    manifest = json.loads((job / "artifact_manifest.P0.json").read_text(encoding="utf-8"))
+    assert manifest["revision"] == 2
+    (job / "artifact_manifest.P0.json").write_text("{broken", encoding="utf-8")
+    _commit_artifacts(job, "P0", [("a.txt", "text/plain")])
+    manifest = json.loads((job / "artifact_manifest.P0.json").read_text(encoding="utf-8"))
+    assert manifest["revision"] == 1
+

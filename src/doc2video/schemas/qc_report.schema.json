@@ -75,6 +75,11 @@
       "title": "Checks",
       "type": "array"
     },
+    "publish_allowed": {
+      "description": "S2.1:由 config/qc.publish 映射机器判定的总发布决定",
+      "title": "Publish Allowed",
+      "type": "boolean"
+    },
     "summary": {
       "minLength": 1,
       "title": "Summary",
@@ -89,6 +94,7 @@
   "required": [
     "status",
     "checks",
+    "publish_allowed",
     "summary",
     "generated_at"
   ],

@@ -9,7 +9,7 @@ import httpx
 from pydantic import ValidationError
 
 from ..contracts import Contract
-from .base import LLMError, LLMProvider, repair_json_syntax
+from .base import LLMError, LLMProvider, redact_response_body, repair_json_syntax
 
 
 class OllamaLLM(LLMProvider):
@@ -32,15 +32,23 @@ class OllamaLLM(LLMProvider):
     def _post(self, path: str, payload: dict[str, Any]) -> dict[str, Any]:
         resp = self._client.post(f"{self.base_url}{path}", json=payload)
         if resp.status_code != 200:
-            raise LLMError(f"Ollama HTTP {resp.status_code}: {resp.text[:300]}")
+            # S3.3:错误体可能回显内容 → 脱敏;状态码足够定位。
+            raise LLMError(f"Ollama HTTP {resp.status_code}: {redact_response_body(resp.text)}")
         return resp.json()
 
     def _chat(self, messages: list[dict], fmt: dict | None = None) -> str:
+        # think 为 /api/chat 顶层参数(方案 S1.3c, H-03):放 options 内会被静默忽略,
+        # 思考输出将挤占 max_output_tokens 预算,存在讲稿截断风险。
         payload: dict[str, Any] = {
             "model": self.model,
             "messages": messages,
             "stream": False,
-            "options": {"num_ctx": self.num_ctx, "temperature": self.temperature, "think": False},
+            "think": False,
+            "options": {
+                "num_ctx": self.num_ctx,
+                "temperature": self.temperature,
+                "num_predict": self.max_output_tokens,
+            },
         }
         if fmt is not None:
             payload["format"] = fmt
@@ -72,7 +80,8 @@ class OllamaLLM(LLMProvider):
                 else:
                     parsed = repair_json_syntax(content)
                     if parsed is None:
-                        last_err = f"JSON 不可解析: {content[:120]!r}"
+                        # S3.3:模型输出可能回显敏感输入 → 只记长度。
+                        last_err = f"JSON 不可解析(长度={len(content)})"
                     else:
                         try:
                             return model_cls.model_validate(parsed)
@@ -95,12 +104,15 @@ class OllamaLLM(LLMProvider):
             raise LLMError("空 content(文本模式)")
         return content.strip()
 
-    def count_tokens(self, texts: list[str]) -> list[int]:
-        """本地 Qwen3 tokenizer 实测计数(不依赖服务端 /api/embed——本机 Ollama 未开 --embeddings)。"""
+    def count_tokens(self, texts: list[str], allow_network: bool = True) -> list[int]:
+        """本地 Qwen3 tokenizer 实测计数(不依赖服务端 /api/embed——本机 Ollama 未开 --embeddings)。
+
+        allow_network=False(offline 作业)时禁止从 HF 下载 tokenizer,无缓存走估算兜底。
+        """
         from .token_counter import TokenCounter
 
         counter = TokenCounter({"llm": {"tokenizer_cache": self._tokenizer_cache}})
-        counts = counter.counts(texts)
+        counts = counter.counts(texts, allow_network=allow_network)
         if counter.mode == "estimate":
             self._estimate_warning = True
         return counts

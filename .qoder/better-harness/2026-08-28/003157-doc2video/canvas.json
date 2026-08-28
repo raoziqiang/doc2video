@@ -1,0 +1,57 @@
+{
+  "$schema_note": "better-harness canvas 数据契约;report.canvas.tsx 内嵌同一份数据渲染。",
+  "report": {
+    "title": "doc2video Harness 实践洞察",
+    "project": "doc2video",
+    "generated_at": "2026-08-28T00:31:57+08:00",
+    "maturity_level": "advanced",
+    "overall_score": 7.8,
+    "headline": "内核级可靠性与发布门禁实践成熟,156 项测试全绿;主要短板在门禁未接入 CI、无覆盖率/静态类型门禁、阶段指纹仍为桩级。"
+  },
+  "stats": [
+    { "label": "综合得分", "value": "7.8 / 10", "tone": "info" },
+    { "label": "测试", "value": "156 通过 / 24.75s", "tone": "success" },
+    { "label": "保留问题", "value": "8", "tone": "warning" },
+    { "label": "高严重度", "value": "1", "tone": "danger" }
+  ],
+  "dimensions": [
+    { "id": "test_automation", "name": "测试自动化", "score": 8.5 },
+    { "id": "quality_gates", "name": "质量门禁", "score": 7.5 },
+    { "id": "ci_cd", "name": "CI/CD", "score": 2.0 },
+    { "id": "reliability", "name": "可靠性/崩溃安全", "score": 9.0 },
+    { "id": "observability", "name": "可观测与审计", "score": 9.0 },
+    { "id": "security", "name": "安全与凭据", "score": 9.0 },
+    { "id": "reproducibility", "name": "确定性/可复现", "score": 7.0 }
+  ],
+  "strengths": [
+    { "title": "崩溃安全的编排内核", "detail": "原子写盘 + 跨进程锁 + 状态机转移表 + resume 全量重验级联失效" },
+    { "title": "契约与 Schema 漂移治理", "detail": "16 份 Schema 生成并逐字节比对,漂移即 fail;LLM 输出仅有界语法修复" },
+    { "title": "Fail-closed 分层发布门禁", "detail": "本地 → 30s 媒体 smoke → live 三层;凭据缺失输出 blocked,不伪造通过" },
+    { "title": "带校验和的事件审计", "detail": "events.jsonl 每行 seq+SHA-256 校验和,读取丢弃半行/损坏行" },
+    { "title": "缓存校验与凭据隔离", "detail": "缓存命中强制 SHA-256;密钥不进配置指纹;报告输出全量 redact" },
+    { "title": "证据驱动的配置冻结", "detail": "M0 Spike 实测值 + 模型 digest 回填配置,变更可追溯" },
+    { "title": "预算与隐私硬护栏", "detail": "云调用/成本上限、重试上限;默认 offline,云调用需显式开关" }
+  ],
+  "findings": [
+    { "id": "F-001", "severity": "high", "category": "CI/CD", "title": "无 CI:所有门禁依赖手工本地执行", "recommendation": "新增 GitHub Actions:PR 触发 ruff + pytest + release_gate 本地层;合并后追加 --media-smoke" },
+    { "id": "F-002", "severity": "medium", "category": "质量门禁", "title": "测试无覆盖率度量与门禁", "recommendation": "引入 pytest-cov 建立基线并纳入 release_gate;pipeline 模块设最低阈值" },
+    { "id": "F-003", "severity": "medium", "category": "质量门禁", "title": "缺少静态类型检查门禁", "recommendation": "opts 显式类型化,引入 pyright/mypy 从 contracts/state/pipeline 起步" },
+    { "id": "F-004", "severity": "medium", "category": "可复现", "title": "阶段指纹为桩级:Prompt/模型变更不会失效下游", "recommendation": "指纹纳入上游产物哈希、Prompt 哈希、模型 digest、Schema 版本" },
+    { "id": "F-005", "severity": "medium", "category": "可靠性", "title": "resume 丢失原始运行参数", "recommendation": "RunOptions 持久化进 manifest/state,resume 时加载原值" },
+    { "id": "F-006", "severity": "low", "category": "可靠性", "title": "doctor 检查执行两次,副作用翻倍", "recommendation": "checks = _doctor_checks(cfg) 仅调用一次,循环与汇总共用" },
+    { "id": "F-007", "severity": "low", "category": "可靠性", "title": "EventLog seq 依赖全量读,单写者未强制", "recommendation": "维护末尾 seq 游标;文档化单写者契约或类内持锁" },
+    { "id": "F-008", "severity": "low", "category": "质量门禁", "title": "CJK 字体路径硬编码为 Windows 路径", "recommendation": "字体解析抽为平台适配;非目标平台输出 skipped 而非 warn" }
+  ],
+  "evidence": {
+    "tests": "pytest 实跑 156 passed in 24.75s(2026-08-28)",
+    "release_gate": "docs/release/release_gate.json — 最近 --live 报告 12/13 pass;FAL_KEY 缺失 → blocked(未伪造通过)",
+    "key_files": [
+      "scripts/release_gate.py",
+      "src/doc2video/state.py",
+      "src/doc2video/pipeline/runner.py",
+      "src/doc2video/cli.py",
+      "src/doc2video/cache.py",
+      "config/default.yaml"
+    ]
+  }
+}

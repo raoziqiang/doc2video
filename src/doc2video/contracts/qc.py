@@ -23,6 +23,7 @@ class QCReport(Contract):
     schema_version: Literal["1.0"] = "1.0"
     status: QCStatus
     checks: list[QCCheck] = Field(min_length=1)
+    publish_allowed: bool = Field(description="S2.1:由 config/qc.publish 映射机器判定的总发布决定")
     summary: str = Field(min_length=1)
     generated_at: datetime
 

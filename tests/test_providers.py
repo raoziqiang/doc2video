@@ -115,6 +115,26 @@ def test_json_repair_rescues_trailing_comma(monkeypatch):
     assert isinstance(out, Script)
 
 
+def test_chat_think_toplevel_and_num_predict(monkeypatch):
+    """S1.3c(H-03):think 必须为 /api/chat 顶层参数(放 options 内被静默忽略),
+    且 max_output_tokens 必须以 num_predict 下发,否则思考输出挤占预算。"""
+    from doc2video.config import load_config
+
+    cfg = load_config()
+    llm = OllamaLLM(cfg)
+    seen: dict = {}
+
+    def fake_post(path, payload):
+        seen.update(payload)
+        return {"message": {"content": "ok"}}
+
+    monkeypatch.setattr(llm, "_post", fake_post)
+    llm.complete_text("s", "u")
+    assert seen.get("think") is False, "think 必须是顶层参数"
+    assert "think" not in seen.get("options", {}), "think 不得藏在 options 内"
+    assert seen["options"]["num_predict"] == cfg["llm"]["max_output_tokens"]
+
+
 def test_count_tokens(monkeypatch):
     """count_tokens 走本地 tokenizer 计数(服务端 --embeddings 未开启)。"""
 
@@ -124,9 +144,83 @@ def test_count_tokens(monkeypatch):
         def __init__(self, cfg):
             pass
 
-        def counts(self, texts):
+        def counts(self, texts, allow_network=True):
             return [42, 7]
 
     monkeypatch.setattr("doc2video.providers.token_counter.TokenCounter", _StubCounter)
     llm = make_llm(monkeypatch, [])
     assert llm.count_tokens(["a", "b"]) == [42, 7]
+
+
+# ── S3.3 日志脱敏:错误消息不得回显外发内容 ─────────────────
+
+def test_unparseable_output_is_redacted(monkeypatch):
+    """模型回显敏感输入且不可解析 → LLMError 只记长度,不携带原文。"""
+    marker = "SECRET_MARKER-身份证-110101199001011234"
+    bad = f"前置说明 {marker} 这不是合法 JSON"
+    llm = make_llm(monkeypatch, [
+        {"message": {"content": bad}},
+        {"message": {"content": bad}},
+    ])
+    with pytest.raises(LLMError) as ei:
+        llm.complete_json("s", "u", Script)
+    assert marker not in str(ei.value), "错误消息不得回显模型输出原文"
+    assert "长度=" in str(ei.value)
+
+
+def test_http_error_body_is_redacted(monkeypatch):
+    """非 200 响应体可能回显请求内容 → 错误只保留状态码与长度。"""
+    from doc2video.config import load_config
+
+    marker = "SECRET_MARKER-内部合同编号"
+    llm = OllamaLLM(load_config())
+
+    class _Resp:
+        status_code = 500
+        text = f"upstream echoed: {marker}"
+
+        def json(self):
+            raise AssertionError("非 200 不得解析响应体")
+
+    monkeypatch.setattr(llm._client, "post", lambda url, json=None: _Resp())
+    with pytest.raises(LLMError) as ei:
+        llm.complete_text("s", "u")
+    assert marker not in str(ei.value)
+    assert "已脱敏" in str(ei.value)
+    assert "500" in str(ei.value)
+
+
+def test_tts_failure_redacts_message(tmp_path, monkeypatch):
+    """P5 TTS 异常只保留类型名,不携带外发文本(见 p5_assets.make_audio)。"""
+    from doc2video.config import load_config
+    from doc2video.pipeline import p5_assets
+
+    class _Boom(Exception):
+        pass
+
+    def fake_run(*a, **kw):
+        raise _Boom("SECRET_MARKER-旁白原文")
+
+    monkeypatch.setattr(p5_assets.asyncio, "run", fake_run)
+    cfg = load_config()
+    with pytest.raises(p5_assets.AssetError) as ei:
+        p5_assets.make_audio("SECRET_MARKER-旁白原文", tmp_path / "a.mp3",
+                             cfg, "approved_cloud", tmp_path)
+    msg = str(ei.value)
+    assert "SECRET_MARKER" not in msg, "TTS 错误不得携带外发文本"
+    assert "_Boom" in msg and "已脱敏" in msg
+
+
+def test_token_counter_offline_forbids_download(tmp_path, monkeypatch):
+    """offline 隐私模式:无本地缓存时不得发起外部下载,直接走估算兜底。"""
+    from doc2video.providers.token_counter import TokenCounter
+
+    counter = TokenCounter({"llm": {"tokenizer_cache": str(tmp_path / "tok")}})
+
+    def _forbidden():
+        raise AssertionError("offline 模式不得触发外部下载")
+
+    monkeypatch.setattr(counter, "_download", _forbidden)
+    text = "离线计数测试"
+    assert counter.count(text, allow_network=False) == len(text)
+    assert counter.mode == "estimate"

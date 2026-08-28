@@ -158,9 +158,17 @@ def stage_p2(job_dir: Path, cfg: dict[str, Any], opts: Any, stage: str | None = 
     if not blocks:
         raise ValueError("REJECT_MALFORMED: parsed.json 无可分析文本块")
 
-    token_counts = llm.count_tokens([t for _, t in blocks])
+    # offline 隐私模式:禁止 tokenizer 远程下载(无缓存时走估算兜底)。
+    privacy_mode = getattr(opts, "privacy_mode", "offline")
+    token_counts = llm.count_tokens([t for _, t in blocks], allow_network=privacy_mode != "offline")
     if any(n < 0 for n in token_counts):
-        raise ValueError("NEEDS_REVIEW: token 计数失败(LLM 服务异常)")
+        # 方案 S1.3b(H-04):token 计数失败属可人工介入的审查态,走 needs_review 通道
+        # (退出码 3),不再抛异常落入 failed——下游因此不得运行。
+        return StageResult(
+            artifacts=[],
+            warnings=["token 计数失败(LLM 服务异常),请人工确认后重跑"],
+            needs_review=True,
+        )
     budget = _input_budget(cfg)
     chunks = _chunk_blocks(blocks, token_counts, budget)
 

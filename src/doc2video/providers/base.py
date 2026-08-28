@@ -14,6 +14,11 @@ class LLMError(RuntimeError):
     pass
 
 
+def redact_response_body(text: str) -> str:
+    """S3.3 日志脱敏:HTTP 错误体可能回显外发内容 → 只记录长度,不记录内容。"""
+    return f"<响应体 {len(text)} 字符,已脱敏>"
+
+
 def repair_json_syntax(text: str) -> dict | None:
     """有界语法修复(仅括号/引号/尾逗号/代码围栏)——禁止猜修业务字段(方案 6.2)。"""
     t = text.strip()
@@ -69,5 +74,5 @@ class LLMProvider(ABC):
         ...
 
     @abstractmethod
-    def count_tokens(self, texts: list[str]) -> list[int]:
-        """目标模型 tokenizer 实测计数(逐条)。"""
+    def count_tokens(self, texts: list[str], allow_network: bool = True) -> list[int]:
+        """目标模型 tokenizer 实测计数(逐条);offline 作业传 allow_network=False 禁止下载。"""

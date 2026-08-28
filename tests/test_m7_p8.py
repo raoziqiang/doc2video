@@ -78,6 +78,7 @@ def test_p8_pass_writes_qc_and_promotes_by_hardlink(tmp_path: Path):
     assert not result.needs_review and result.error is None
     qc = json.loads((job / "qc_report.json").read_text(encoding="utf-8"))
     assert qc["status"] in {"succeeded", "succeeded_with_warnings"}
+    assert qc["publish_allowed"] is True, "S2.1:总发布决定必须入报告"
     assert {x["result"] for x in qc["checks"]} <= {"pass", "warn"}
     release = json.loads((job / "release_manifest.json").read_text(encoding="utf-8"))
     final = job / release["final_path"]
@@ -135,6 +136,74 @@ def test_p8_duration_check_uses_timeline_not_audio_sum(tmp_path: Path):
     duration = next(x for x in qc["checks"] if "时长" in x["name"])
     assert duration["result"] == "fail"
     assert not (job / "final" / "output.mp4").exists()
+
+
+def _add_fact_and_claim(job: Path, value: float) -> None:
+    """给 _rendered_job 补一个数字事实与讲稿 claim(数字复验测试用)。"""
+    summary = json.loads((job / "grounded_summary.json").read_text(encoding="utf-8"))
+    summary["facts"] = [{
+        "fact_id": "f01", "kind": "number", "text": "半衰期为 5.5 小时",
+        "normalized": {"value": value, "unit": "小时"},
+        "source_block_ids": ["b1"], "source_pages": [1],
+    }]
+    (job / "grounded_summary.json").write_text(json.dumps(summary, ensure_ascii=False), encoding="utf-8")
+    script = json.loads((job / "script.json").read_text(encoding="utf-8"))
+    narration = script["scenes"][0]["narration"]
+    script["scenes"][0]["claims"] = [{"fact_id": "f01", "quote": narration[:12]}]
+    (job / "script.json").write_text(json.dumps(script, ensure_ascii=False), encoding="utf-8")
+
+
+def test_p8_number_recheck_passes_when_anchored(tmp_path: Path):
+    """S2.2(H-06):归一化值与原文一致 → 复验通过。"""
+    job = _rendered_job(tmp_path)
+    _add_fact_and_claim(job, value=5.5)
+    result = stage_p8(job, load_config(), SimpleNamespace(preview=False))
+    assert result.error is None
+    qc = json.loads((job / "qc_report.json").read_text(encoding="utf-8"))
+    numbers = next(x for x in qc["checks"] if x["name"] == "数字/单位复验")
+    assert numbers["result"] == "pass"
+
+
+def test_p8_number_recheck_fails_on_inconsistency(tmp_path: Path):
+    """S2.2(H-06):归一化值与原文数字不符 → 硬失败,不发布。"""
+    job = _rendered_job(tmp_path)
+    _add_fact_and_claim(job, value=6.5)
+    result = stage_p8(job, load_config(), SimpleNamespace(preview=False))
+    assert result.error
+    qc = json.loads((job / "qc_report.json").read_text(encoding="utf-8"))
+    assert qc["status"] == "failed"
+    assert qc["publish_allowed"] is False
+    numbers = next(x for x in qc["checks"] if x["name"] == "数字/单位复验")
+    assert numbers["result"] == "fail"
+    assert not (job / "final" / "output.mp4").exists()
+
+
+def test_p8_uncovered_blocks_drive_needs_review(tmp_path: Path):
+    """S2.2(H-06):coverage.uncovered 超阈值 → needs_review 且不发布。"""
+    job = _rendered_job(tmp_path)
+    summary = json.loads((job / "grounded_summary.json").read_text(encoding="utf-8"))
+    summary["coverage"] = {"blocks_seen": 0, "blocks_total": 1, "uncovered_block_ids": ["b1"]}
+    (job / "grounded_summary.json").write_text(json.dumps(summary, ensure_ascii=False), encoding="utf-8")
+    result = stage_p8(job, load_config(), SimpleNamespace(preview=False))
+    assert result.needs_review and result.error is None
+    qc = json.loads((job / "qc_report.json").read_text(encoding="utf-8"))
+    assert qc["status"] == "needs_review"
+    assert qc["publish_allowed"] is False
+    coverage = next(x for x in qc["checks"] if x["name"] == "证据覆盖")
+    assert coverage["result"] == "warn"
+    assert not (job / "final" / "output.mp4").exists()
+
+
+def test_qc_thresholds_are_parametrized(tmp_path: Path):
+    """S2.1(AC-7):阈值从 config/qc 消费——收紧时长容差即可构造违规触发。"""
+    job = _rendered_job(tmp_path)
+    cfg = load_config()
+    cfg["qc"]["duration_tolerance"] = 0.0  # 任何误差都不允许 → 必然触发
+    result = stage_p8(job, cfg, SimpleNamespace(preview=False))
+    assert result.error
+    qc = json.loads((job / "qc_report.json").read_text(encoding="utf-8"))
+    duration = next(x for x in qc["checks"] if x["name"] == "时长")
+    assert duration["result"] == "fail"
 
 
 def test_runner_commits_error_stage_artifacts_before_failed(tmp_path: Path, monkeypatch):

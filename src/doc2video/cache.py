@@ -4,7 +4,10 @@ from __future__ import annotations
 
 import hashlib
 import json
+import os
 import shutil
+import time
+import uuid
 from pathlib import Path
 from typing import Any
 
@@ -45,11 +48,73 @@ class CacheStore:
             raise FileNotFoundError(source)
         target = self._path(key)
         target.parent.mkdir(parents=True, exist_ok=True)
-        shutil.copy2(source, target)
-        digest = hashlib.sha256(target.read_bytes()).hexdigest()
+        existing = self.get(key)
+        if existing is not None:
+            return existing  # 共享缓存可能被多作业并发写:已有合法条目不重写
+        # 先写临时文件再 os.replace:并发读者永远看不到半成品内容。
+        tmp = target.parent / f".{target.name}.{uuid.uuid4().hex}.tmp"
+        shutil.copy2(source, tmp)
+        digest = hashlib.sha256(tmp.read_bytes()).hexdigest()
+        os.replace(tmp, target)
         target.with_suffix(target.suffix + ".sha256").write_text(digest, encoding="ascii")
         return target
 
+
+
+def garbage_collect(
+    root: str | Path,
+    max_bytes: int | None = None,
+    ttl_days: float | None = None,
+    dry_run: bool = False,
+) -> dict[str, Any]:
+    """S3.4 缓存 GC:先按 TTL 淘汰,再按 LRU(最旧优先)压到体积上限内。
+
+    只删数据文件与其 .sha256 marker;空子目录顺手清理。缓存损坏视为可弃(与 get 的语义一致)。
+    """
+    root = Path(root)
+    removed = 0
+    freed = 0
+    if not root.is_dir():
+        return {"removed": removed, "freed_bytes": freed, "kept_bytes": 0, "dry_run": dry_run}
+    entries: list[tuple[float, int, Path]] = []
+    for data in root.rglob("*"):
+        if data.is_file() and not data.name.endswith(".sha256") and not data.name.startswith("."):
+            entries.append((data.stat().st_mtime, data.stat().st_size, data))
+
+    def _remove(path: Path) -> None:
+        nonlocal removed, freed
+        size = path.stat().st_size
+        if not dry_run:
+            path.unlink(missing_ok=True)
+            path.with_suffix(path.suffix + ".sha256").unlink(missing_ok=True)
+        removed += 1
+        freed += size
+
+    now = time.time()
+    if ttl_days is not None:
+        cutoff = now - ttl_days * 86400
+        kept = []
+        for mtime, _size, path in entries:
+            if mtime < cutoff:
+                _remove(path)
+            else:
+                kept.append((mtime, _size, path))
+        entries = kept
+    if max_bytes is not None:
+        total = sum(size for _m, size, _p in entries)
+        for _mtime, _size, path in sorted(entries):  # 最旧优先淘汰,直到回到上限内
+            if total <= max_bytes:
+                break
+            size = path.stat().st_size if path.exists() else 0
+            _remove(path)
+            total -= size
+    kept_bytes = 0
+    for data in root.rglob("*"):
+        if data.is_file() and not data.name.endswith(".sha256"):
+            kept_bytes += data.stat().st_size
+        if data.is_dir() and not dry_run and not any(data.iterdir()):
+            data.rmdir()
+    return {"removed": removed, "freed_bytes": freed, "kept_bytes": kept_bytes, "dry_run": dry_run}
 
 
 def canonical_json(obj: Any) -> str:
