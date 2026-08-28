@@ -204,3 +204,10 @@ uv build --out-dir <temporary-dir>
 - 日志、manifest 和 release gate 报告不保存 API key、token、密码或连接凭据。
 - 外部素材路径必须先快照或位于 Job 根目录；P9 拒绝路径穿越。
 - 所有阶段产物不可变；下游写独立产物，不回写上游 QC/事实/讲稿文件。
+
+## 许可证（分发形态：开源）
+
+本项目采用 **AGPL-3.0**（见 `LICENSE`）：整体许可须 ≥ AGPL，由依赖 `pymupdf` 的 AGPL copyleft 决定。
+
+- 字体与音色文件永不随仓库或产物分发：字幕字体仅引用运行机已安装的系统字体（见 `config.subtitle.font`）。
+- 第三方依赖许可证事实与分发决策矩阵见 `docs/licenses.md`；运行时服务（edge-tts/FAL/模型权重）的权利确认项在文内标注，需人工确认。

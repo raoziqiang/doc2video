@@ -2,6 +2,8 @@
 name = "doc2video"
 version = "0.1.0"
 description = "文档 → 视频 自动化流水线(技术方案 v0.2.1)"
+license = "AGPL-3.0-only"  # S3.5 分发形态 C(开源):pymupdf AGPL copyleft 决定整体许可
+license-files = ["LICENSE"]
 requires-python = ">=3.11,<3.12"
 dependencies = [
     "pydantic>=2.9",
